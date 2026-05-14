@@ -54,19 +54,19 @@ type FileConfig struct {
 	OutputFormat *string  `json:"output_format,omitempty"`
 }
 
-// FindConfigFile looks for .npclean.json in cwd first, then ~/.config/npclean/config.json.
+// FindConfigFile looks for .depsclean.json in cwd first, then ~/.config/depsclean/config.json.
 // Returns the first found path or empty string.
 func FindConfigFile() string {
 	cwd, err := os.Getwd()
 	if err == nil {
-		candidate := filepath.Join(cwd, ".npclean.json")
+		candidate := filepath.Join(cwd, ".depsclean.json")
 		if _, err := os.Stat(candidate); err == nil {
 			return candidate
 		}
 	}
 	home, err := os.UserHomeDir()
 	if err == nil {
-		candidate := filepath.Join(home, ".config", "npclean", "config.json")
+		candidate := filepath.Join(home, ".config", "depsclean", "config.json")
 		if _, err := os.Stat(candidate); err == nil {
 			return candidate
 		}
