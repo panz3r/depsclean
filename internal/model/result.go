@@ -22,6 +22,14 @@ const (
 	PackageManagerYarn    PackageManager = "yarn"
 	PackageManagerPNPM    PackageManager = "pnpm"
 	PackageManagerBun     PackageManager = "bun"
+
+	// Non-Node ecosystems
+	PackageManagerPython PackageManager = "python"
+	PackageManagerRust   PackageManager = "rust"
+	PackageManagerGo     PackageManager = "go"
+	PackageManagerPHP    PackageManager = "php"
+	PackageManagerRuby   PackageManager = "ruby"
+	PackageManagerJava   PackageManager = "java"
 )
 
 // Result represents a discovered dependency directory.
