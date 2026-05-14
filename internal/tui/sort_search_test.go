@@ -7,6 +7,123 @@ import (
 	"github.com/panz3r/depsclean/internal/model"
 )
 
+// --- Default sort mode tests ---
+
+// TestDefaultSortMode_IsPathAsc verifies that a freshly created model uses
+// path-ascending order so related nested projects stay adjacent.
+func TestDefaultSortMode_IsPathAsc(t *testing.T) {
+	m := newModel(nil)
+	if m.sortMode != SortByPathAsc {
+		t.Errorf("expected default sortMode to be SortByPathAsc (%d), got %d", SortByPathAsc, m.sortMode)
+	}
+}
+
+// TestDefaultSort_NestedProjectsAdjacent checks that projects sharing a common
+// root directory are listed consecutively under the default path sort.
+func TestDefaultSort_NestedProjectsAdjacent(t *testing.T) {
+	m := newModel(nil)
+	// Three siblings under /work/mono and one unrelated project.
+	paths := []struct {
+		id, projectPath string
+	}{
+		{"/work/mono/app/node_modules", "/work/mono/app"},
+		{"/other/standalone/node_modules", "/other/standalone"},
+		{"/work/mono/api/node_modules", "/work/mono/api"},
+		{"/work/mono/shared/node_modules", "/work/mono/shared"},
+	}
+	for i, p := range paths {
+		r := model.Result{
+			ID:          p.id,
+			Path:        p.id,
+			ProjectPath: p.projectPath,
+			Basename:    "node_modules",
+			SizeBytes:   int64((i + 1) * 100),
+			Status:      model.StatusReady,
+		}
+		m.addResult(r)
+	}
+
+	// All /work/mono/* entries must be contiguous in the sorted output.
+	monoStart := -1
+	monoEnd := -1
+	for i, r := range m.visibleResults {
+		if len(r.ProjectPath) >= len("/work/mono") && r.ProjectPath[:len("/work/mono")] == "/work/mono" {
+			if monoStart == -1 {
+				monoStart = i
+			}
+			monoEnd = i
+		} else if monoStart != -1 && monoEnd != -1 && i > monoEnd {
+			// Non-mono entry appearing after mono entries started — OK only if all mono are done.
+			// Check if any more mono entries appear after this.
+			for j := i + 1; j < len(m.visibleResults); j++ {
+				rj := m.visibleResults[j]
+				if len(rj.ProjectPath) >= len("/work/mono") && rj.ProjectPath[:len("/work/mono")] == "/work/mono" {
+					t.Errorf("mono projects are not adjacent: non-mono entry at index %d breaks the group (next mono at %d)", i, j)
+					return
+				}
+			}
+		}
+	}
+	if monoStart == -1 {
+		t.Fatal("no /work/mono entries found in visible results")
+	}
+}
+
+// TestDefaultSort_PathOrderStability verifies that results with the same
+// ProjectPath preserve a stable relative order (i.e., sort.Slice tie-breaking
+// does not scramble equal-path entries across repeated refilterAndSort calls).
+func TestDefaultSort_PathOrderStability(t *testing.T) {
+	m := newModel(nil)
+	// Two entries sharing the same project path but different dep directories.
+	entries := []model.Result{
+		{
+			ID:          "/workspace/myapp/node_modules",
+			Path:        "/workspace/myapp/node_modules",
+			ProjectPath: "/workspace/myapp",
+			Basename:    "node_modules",
+			SizeBytes:   500,
+			Status:      model.StatusReady,
+		},
+		{
+			ID:          "/workspace/myapp/.cache",
+			Path:        "/workspace/myapp/.cache",
+			ProjectPath: "/workspace/myapp",
+			Basename:    ".cache",
+			SizeBytes:   200,
+			Status:      model.StatusReady,
+		},
+	}
+	for _, r := range entries {
+		m.addResult(r)
+	}
+
+	// Record the initial order of IDs.
+	first := make([]string, len(m.visibleResults))
+	for i, r := range m.visibleResults {
+		first[i] = r.ID
+	}
+
+	// Re-run refilterAndSort multiple times — order must be deterministic.
+	for round := 0; round < 5; round++ {
+		m.refilterAndSort()
+		for i, r := range m.visibleResults {
+			if r.ID != first[i] {
+				t.Errorf("round %d: order changed at index %d: want %q, got %q",
+					round+1, i, first[i], r.ID)
+			}
+		}
+	}
+}
+
+// TestNextSortMode_StartsFromPathAsc verifies that cycling from the default
+// sort (SortByPathAsc) moves to the next mode without wrapping to itself.
+func TestNextSortMode_StartsFromPathAsc(t *testing.T) {
+	next := NextSortMode(SortByPathAsc)
+	if next == SortByPathAsc {
+		t.Errorf("NextSortMode(SortByPathAsc) returned SortByPathAsc — sort cycling is broken")
+	}
+}
+
 // --- Additional sort mode tests ---
 
 func TestSortBySizeAsc_OrderCorrect(t *testing.T) {

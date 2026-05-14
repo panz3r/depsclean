@@ -76,7 +76,7 @@ func newModel(startCmd tea.Cmd) Model {
 		layout:       NewLayout(80, 24, false, false),
 		selected:     make(map[string]bool),
 		resultsIndex: make(map[string]int),
-		sortMode:     SortBySizeDesc,
+		sortMode:     SortByPathAsc,
 		rowMode:      RowModeCompact,
 		startCmd:     startCmd,
 	}

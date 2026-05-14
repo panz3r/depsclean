@@ -90,6 +90,9 @@ func TestUpdateResult_FallsBackToAddIfUnknown(t *testing.T) {
 
 func TestCursorStability_AfterInPlaceUpdate(t *testing.T) {
 	m := newModel(nil)
+	// Use size-desc so adding b (larger) causes a reorder, exercising cursor-ID tracking.
+	m.sortMode = SortBySizeDesc
+
 	// Add two pending rows; cursor starts at 0 (first item added: a, size 50)
 	a := makeResult("/a/node_modules", 50, model.StatusPending)
 	b := makeResult("/b/node_modules", 200, model.StatusPending)
@@ -109,7 +112,7 @@ func TestCursorStability_AfterInPlaceUpdate(t *testing.T) {
 		t.Fatalf("expected cursor on /a/node_modules, got %q", m.visibleResults[m.cursor].ID)
 	}
 
-	// Explicitly move cursor to a (it's already there) — confirm which ID we're on
+	// Confirm which ID we're on
 	wantID := m.visibleResults[m.cursor].ID // /a/node_modules
 
 	// Enrich b with a much larger size — sort order stays the same (b first)
@@ -128,6 +131,9 @@ func TestCursorStability_AfterInPlaceUpdate(t *testing.T) {
 
 func TestCursorStability_UnderSearchFilter(t *testing.T) {
 	m := newModel(nil)
+	// Use size-desc so beta (200) is listed before alpha (100).
+	m.sortMode = SortBySizeDesc
+
 	a := makeResult("/projects/alpha/node_modules", 100, model.StatusReady)
 	a.PackageName = "alpha"
 	b := makeResult("/projects/beta/node_modules", 200, model.StatusReady)
