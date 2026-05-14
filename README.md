@@ -1,4 +1,4 @@
-# npclean
+# depsclean
 
 > A fast, interactive CLI/TUI for discovering and removing dependency directories (`node_modules`, `.venv`, `vendor`, and more) to reclaim disk space.
 >
@@ -24,7 +24,7 @@
 ### From source (requires Go 1.23+)
 
 ```sh
-go install github.com/panz3r/npclean/cmd/npclean@latest
+go install github.com/panz3r/npclean/cmd/depsclean@latest
 ```
 
 ### Pre-built binaries
@@ -35,10 +35,10 @@ Pre-built binaries will be available on the [GitHub Releases](https://github.com
 
 ## How it works
 
-1. `npclean` (or `npclean ui`) launches the interactive TUI and starts scanning from the current directory (or `--root`).
+1. `depsclean` (or `depsclean ui`) launches the interactive TUI and starts scanning from the current directory (or `--root`).
 2. Discovered target directories stream into the list as they are found.
 3. A background worker pool enriches each row with its on-disk size, last-modified date, and package metadata (package name/version, package manager).
-4. You navigate, search, sort, and delete interactively — or exit and use `npclean scan` for non-interactive output.
+4. You navigate, search, sort, and delete interactively — or exit and use `depsclean scan` for non-interactive output.
 
 Deletion is safe by design:
 - The path must be absolute.
@@ -50,12 +50,12 @@ Deletion is safe by design:
 
 ## Configuration
 
-`npclean` looks for a configuration file in two locations (first match wins):
+`depsclean` looks for a configuration file in two locations (first match wins):
 
-1. `.npclean.json` in the current working directory
-2. `~/.config/npclean/config.json`
+1. `.depsclean.json` in the current working directory
+2. `~/.config/depsclean/config.json`
 
-You can also pass an explicit path with `npclean scan --config /path/to/config.json`.
+You can also pass an explicit path with `depsclean scan --config /path/to/config.json`.
 
 ### Config file format
 
@@ -75,7 +75,7 @@ You can also pass an explicit path with `npclean scan --config /path/to/config.j
 | Field           | Type       | Default         | Description                                              |
 |-----------------|------------|-----------------|----------------------------------------------------------|
 | `version`       | `int`      | —               | Config file version (informational, currently unused)   |
-| `profile`       | `string`   | `"node"`        | Built-in scan profile (see `npclean profiles`)          |
+| `profile`       | `string`   | `"node"`        | Built-in scan profile (see `depsclean profiles`)          |
 | `targets`       | `[]string` | `["node_modules"]` | Directory names to treat as targets                  |
 | `excludes`      | `[]string` | `[]`            | Glob patterns to exclude (matched on full path or basename) |
 | `skip_hidden`   | `bool`     | `true`          | Skip directories whose name starts with `.`             |
@@ -90,12 +90,12 @@ You can also pass an explicit path with `npclean scan --config /path/to/config.j
 ## CLI usage
 
 ```
-npclean [flags]                  Launch the interactive TUI (default command)
-npclean ui [flags]               Launch the interactive TUI explicitly
-npclean scan [flags]             Scan and print results (non-interactive)
-npclean delete-all [flags]       Delete all discovered directories (batch)
-npclean profiles                 List built-in scan profiles
-npclean version [--check-update] Print version; optionally check for updates
+depsclean [flags]                  Launch the interactive TUI (default command)
+depsclean ui [flags]               Launch the interactive TUI explicitly
+depsclean scan [flags]             Scan and print results (non-interactive)
+depsclean delete-all [flags]       Delete all discovered directories (batch)
+depsclean profiles                 List built-in scan profiles
+depsclean version [--check-update] Print version; optionally check for updates
 ```
 
 ### Global / shared flags
@@ -109,14 +109,14 @@ npclean version [--check-update] Print version; optionally check for updates
 | `--max-depth`    | `10`           | Maximum scan depth (`0` = unlimited)                |
 | `--dry-run`      | `false`        | Simulate deletions without removing files           |
 
-### `npclean scan` additional flags
+### `depsclean scan` additional flags
 
 | Flag        | Default  | Description                                            |
 |-------------|----------|--------------------------------------------------------|
 | `--config`  | _(auto)_ | Explicit config file path (bypasses auto-detection)    |
 | `--format`  | `text`   | Output format: `text`, `json`, or `ndjson`             |
 
-### `npclean delete-all` additional flags
+### `depsclean delete-all` additional flags
 
 | Flag      | Default | Description                                              |
 |-----------|---------|----------------------------------------------------------|
@@ -126,19 +126,19 @@ npclean version [--check-update] Print version; optionally check for updates
 
 ```sh
 # Launch TUI in the current directory
-npclean
+depsclean
 
 # Scan ~/workspace with the Python profile
-npclean scan --root ~/workspace --profile python
+depsclean scan --root ~/workspace --profile python
 
 # Stream NDJSON to a file
-npclean scan --root ~/projects --format ndjson > results.ndjson
+depsclean scan --root ~/projects --format ndjson > results.ndjson
 
 # Dry-run delete-all to preview what would be removed
-npclean delete-all --dry-run --root ~/workspace
+depsclean delete-all --dry-run --root ~/workspace
 
 # Actually delete all found node_modules (requires --yes)
-npclean delete-all --yes --root ~/workspace
+depsclean delete-all --yes --root ~/workspace
 ```
 
 ---
@@ -156,7 +156,7 @@ npclean delete-all --yes --root ~/workspace
 | `java`   | `target`, `.gradle`, `build`                                     |
 | `all`    | Union of all the above                                           |
 
-Run `npclean profiles` to see the full list with descriptions.
+Run `depsclean profiles` to see the full list with descriptions.
 
 ---
 
@@ -198,4 +198,3 @@ Run `npclean profiles` to see the full list with descriptions.
 ## License
 
 [MPL-2.0 License](https://www.mozilla.org/en-US/MPL/2.0/)
-

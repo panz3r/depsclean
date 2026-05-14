@@ -108,8 +108,8 @@ func TestFindConfigFile_FoundInCwd(t *testing.T) {
 	os.Setenv("HOME", tmp)
 	defer os.Setenv("HOME", origHome)
 
-	// Place .npclean.json in the temp dir (now cwd).
-	cfgPath := filepath.Join(tmp, ".npclean.json")
+	// Place .depsclean.json in the temp dir (now cwd).
+	cfgPath := filepath.Join(tmp, ".depsclean.json")
 	if err := os.WriteFile(cfgPath, []byte(`{"version":1}`), 0644); err != nil {
 		t.Fatalf("setup: %v", err)
 	}
@@ -124,7 +124,7 @@ func TestFindConfigFile_FoundInCwd(t *testing.T) {
 }
 
 func TestLoadFile_ValidFixture(t *testing.T) {
-	path := filepath.Join("testdata", "valid.npclean.json")
+	path := filepath.Join("testdata", "valid.depsclean.json")
 	fc, err := LoadFile(path)
 	if err != nil {
 		t.Fatalf("LoadFile returned error: %v", err)
@@ -157,7 +157,7 @@ func TestLoadFile_ValidFixture(t *testing.T) {
 }
 
 func TestLoadFile_InvalidJSON(t *testing.T) {
-	path := filepath.Join("testdata", "invalid.npclean.json")
+	path := filepath.Join("testdata", "invalid.depsclean.json")
 	_, err := LoadFile(path)
 	if err == nil {
 		t.Fatal("expected error for invalid JSON, got nil")
@@ -218,7 +218,7 @@ func TestApplyFile_AllFields(t *testing.T) {
 
 func TestApplyFile_LoadAndApply_RoundTrip(t *testing.T) {
 	cfg := Default()
-	path := filepath.Join("testdata", "valid.npclean.json")
+	path := filepath.Join("testdata", "valid.depsclean.json")
 	fc, err := LoadFile(path)
 	if err != nil {
 		t.Fatalf("LoadFile: %v", err)

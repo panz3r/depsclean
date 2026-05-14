@@ -46,10 +46,10 @@ type Model struct {
 	scanFound      int
 	errors         []string
 	startCmd       tea.Cmd
-	resultsIndex   map[string]int  // ID → index in allResults (for O(1) in-place update)
-	cursorID       string          // stable cursor identity across async updates and re-sorts
+	resultsIndex   map[string]int     // ID → index in allResults (for O(1) in-place update)
+	cursorID       string             // stable cursor identity across async updates and re-sorts
 	deleter        *deletepkg.Deleter // nil in demo mode
-	rangeAnchor    string          // ID of range selection anchor; "" = not active
+	rangeAnchor    string             // ID of range selection anchor; "" = not active
 	dryRun         bool
 }
 
@@ -518,7 +518,7 @@ func (m Model) View() string {
 	w := m.layout.Width
 
 	// Header
-	title := styleHeader.Render("npclean")
+	title := styleHeader.Render("depsclean")
 	var rightText string
 	if m.scanState == ScanStateDone {
 		rightText = styleStatusDone.Render("✓ scan complete") + styleHeaderRight.Render(fmt.Sprintf(" (%d found)", m.scanFound))
