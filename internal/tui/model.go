@@ -2,6 +2,7 @@ package tui
 
 import (
 	"fmt"
+	"path/filepath"
 	"sort"
 	"strings"
 
@@ -432,6 +433,47 @@ func (m *Model) deleteSelected() tea.Cmd {
 	return tea.Batch(cmds...)
 }
 
+func pathSortParts(path string) []string {
+	cleaned := filepath.ToSlash(filepath.Clean(path))
+	cleaned = strings.Trim(cleaned, "/")
+	if cleaned == "" || cleaned == "." {
+		return nil
+	}
+	return strings.Split(cleaned, "/")
+}
+
+func compareHierarchicalPath(a, b string) int {
+	partsA := pathSortParts(a)
+	partsB := pathSortParts(b)
+	limit := len(partsA)
+	if len(partsB) < limit {
+		limit = len(partsB)
+	}
+
+	for i := 0; i < limit; i++ {
+		if partsA[i] == partsB[i] {
+			continue
+		}
+		if partsA[i] < partsB[i] {
+			return -1
+		}
+		return 1
+	}
+
+	switch {
+	case len(partsA) < len(partsB):
+		return -1
+	case len(partsA) > len(partsB):
+		return 1
+	case a < b:
+		return -1
+	case a > b:
+		return 1
+	default:
+		return 0
+	}
+}
+
 func (m *Model) refilterAndSort() {
 	// Save cursor ID before rebuild
 	if m.cursor >= 0 && m.cursor < len(m.visibleResults) {
@@ -451,12 +493,18 @@ func (m *Model) refilterAndSort() {
 		}
 	}
 
-	sort.Slice(visible, func(i, j int) bool {
+	sort.SliceStable(visible, func(i, j int) bool {
 		a, b := visible[i], visible[j]
 		switch m.sortMode {
 		case SortBySizeDesc:
+			if a.SizeBytes == b.SizeBytes {
+				return compareHierarchicalPath(a.ProjectPath, b.ProjectPath) < 0
+			}
 			return a.SizeBytes > b.SizeBytes
 		case SortBySizeAsc:
+			if a.SizeBytes == b.SizeBytes {
+				return compareHierarchicalPath(a.ProjectPath, b.ProjectPath) < 0
+			}
 			return a.SizeBytes < b.SizeBytes
 		case SortByNameAsc:
 			na := a.PackageName
@@ -467,14 +515,30 @@ func (m *Model) refilterAndSort() {
 			if nb == "" {
 				nb = b.Basename
 			}
+			if na == nb {
+				return compareHierarchicalPath(a.ProjectPath, b.ProjectPath) < 0
+			}
 			return na < nb
 		case SortByPathAsc:
-			return a.ProjectPath < b.ProjectPath
+			pathCmp := compareHierarchicalPath(a.ProjectPath, b.ProjectPath)
+			if pathCmp != 0 {
+				return pathCmp < 0
+			}
+			return compareHierarchicalPath(a.Path, b.Path) < 0
 		case SortByNewest:
+			if a.LastModified.Equal(b.LastModified) {
+				return compareHierarchicalPath(a.ProjectPath, b.ProjectPath) < 0
+			}
 			return a.LastModified.After(b.LastModified)
 		case SortByOldest:
+			if a.LastModified.Equal(b.LastModified) {
+				return compareHierarchicalPath(a.ProjectPath, b.ProjectPath) < 0
+			}
 			return a.LastModified.Before(b.LastModified)
 		default:
+			if a.SizeBytes == b.SizeBytes {
+				return compareHierarchicalPath(a.ProjectPath, b.ProjectPath) < 0
+			}
 			return a.SizeBytes > b.SizeBytes
 		}
 	})
