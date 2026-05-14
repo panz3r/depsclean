@@ -15,7 +15,7 @@ var (
 	styleStatusScan = lipgloss.NewStyle().Foreground(lipgloss.Color("#FFAA00"))
 )
 
-func RenderStatusBar(total, visible, selected int, sortLabel, rowModeLabel string, scanDone bool, width int) string {
+func RenderStatusBar(total, visible, selected int, sortLabel, rowModeLabel string, scanDone bool, dryRun bool, width int) string {
 	// Line 1: key hints
 	hints := []string{
 		styleStatusKey.Render("↑↓") + styleStatusText.Render(" navigate"),
@@ -24,6 +24,11 @@ func RenderStatusBar(total, visible, selected int, sortLabel, rowModeLabel strin
 		styleStatusKey.Render("d") + styleStatusText.Render(":") + styleStatusText.Render(rowModeLabel),
 		styleStatusKey.Render("enter") + styleStatusText.Render(" details"),
 		styleStatusKey.Render("space") + styleStatusText.Render(" select"),
+		styleStatusKey.Render("x") + styleStatusText.Render(" delete"),
+		styleStatusKey.Render("X") + styleStatusText.Render(" del-sel"),
+		styleStatusKey.Render("a") + styleStatusText.Render(" sel-all"),
+		styleStatusKey.Render("r") + styleStatusText.Render(" range"),
+		styleStatusKey.Render("o") + styleStatusText.Render(" open"),
 		styleStatusKey.Render("q") + styleStatusText.Render(" quit"),
 	}
 	line1 := " " + strings.Join(hints, styleStatusText.Render("  "))
@@ -46,6 +51,9 @@ func RenderStatusBar(total, visible, selected int, sortLabel, rowModeLabel strin
 		styleStatusText.Render(fmt.Sprintf("%d selected", selected)),
 		scanStatus,
 	)
+	if dryRun {
+		stats += styleStatusScan.Render("  dry-run")
+	}
 	sw := lipgloss.Width(stats)
 	if sw < width {
 		stats += strings.Repeat(" ", width-sw)

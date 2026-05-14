@@ -40,11 +40,13 @@ root.Flags().StringVar(&cfg.Profile, "profile", cfg.Profile, "Built-in profile t
 root.Flags().StringArrayVar(&cfg.Excludes, "exclude", cfg.Excludes, "Patterns to exclude (can be repeated)")
 root.Flags().BoolVar(&cfg.SkipHidden, "skip-hidden", cfg.SkipHidden, "Skip hidden directories")
 root.Flags().IntVar(&cfg.MaxDepth, "max-depth", cfg.MaxDepth, "Maximum directory depth (0=unlimited)")
+root.Flags().BoolVar(&cfg.DryRun, "dry-run", cfg.DryRun, "Simulate deletions without removing files")
 
 root.AddCommand(buildScanCmd())
 root.AddCommand(buildUICmd())
 root.AddCommand(buildVersionCmd())
 root.AddCommand(buildProfilesCmd())
+root.AddCommand(buildDeleteAllCmd())
 return root
 }
 
@@ -67,7 +69,32 @@ cmd.Flags().StringVar(&cfg.Profile, "profile", cfg.Profile, "Built-in profile to
 cmd.Flags().StringArrayVar(&cfg.Excludes, "exclude", cfg.Excludes, "Patterns to exclude (can be repeated)")
 cmd.Flags().BoolVar(&cfg.SkipHidden, "skip-hidden", cfg.SkipHidden, "Skip hidden directories")
 cmd.Flags().IntVar(&cfg.MaxDepth, "max-depth", cfg.MaxDepth, "Maximum directory depth (0=unlimited)")
+cmd.Flags().BoolVar(&cfg.DryRun, "dry-run", cfg.DryRun, "Simulate deletions without removing files")
 
+return cmd
+}
+
+func buildDeleteAllCmd() *cobra.Command {
+cfg := config.Default()
+var yes bool
+
+cmd := &cobra.Command{
+Use:   "delete-all",
+Short: "Delete all discovered dependency directories (requires --yes or --dry-run)",
+RunE: func(cmd *cobra.Command, args []string) error {
+if p, ok := config.LookupProfile(cfg.Profile); ok {
+cfg.Targets = p.Targets
+}
+return app.RunDeleteAll(cfg, yes)
+},
+}
+cmd.Flags().BoolVar(&yes, "yes", false, "Confirm deletion (required for actual deletion)")
+cmd.Flags().BoolVar(&cfg.DryRun, "dry-run", false, "Simulate deletions without removing files")
+cmd.Flags().StringVar(&cfg.RootDir, "root", cfg.RootDir, "Root directory to scan")
+cmd.Flags().StringVar(&cfg.Profile, "profile", cfg.Profile, "Built-in profile to use (e.g. node)")
+cmd.Flags().StringArrayVar(&cfg.Excludes, "exclude", cfg.Excludes, "Patterns to exclude (can be repeated)")
+cmd.Flags().BoolVar(&cfg.SkipHidden, "skip-hidden", cfg.SkipHidden, "Skip hidden directories")
+cmd.Flags().IntVar(&cfg.MaxDepth, "max-depth", cfg.MaxDepth, "Maximum directory depth (0=unlimited)")
 return cmd
 }
 

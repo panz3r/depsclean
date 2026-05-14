@@ -17,6 +17,7 @@ var (
 	styleSizeReady   = lipgloss.NewStyle().Foreground(lipgloss.Color("#E8FF85"))
 	styleSizePending = lipgloss.NewStyle().Foreground(lipgloss.Color("#666666"))
 	styleDeleted     = lipgloss.NewStyle().Foreground(lipgloss.Color("#666666")).Strikethrough(true)
+	styleDeleting    = lipgloss.NewStyle().Foreground(lipgloss.Color("#FFAA00"))
 	styleError       = lipgloss.NewStyle().Foreground(lipgloss.Color("#FF5F57"))
 	styleMeta        = lipgloss.NewStyle().Foreground(lipgloss.Color("#888888"))
 	styleCheckmark   = lipgloss.NewStyle().Foreground(lipgloss.Color("#7D56F4"))
@@ -80,6 +81,8 @@ func RenderCompactRow(r model.Result, isCursor bool, isSelected bool, width int)
 		sizeStr = styleSizePending.Render(fmt.Sprintf("%*s", sizeWidth, "…"))
 	} else if r.Status == model.StatusDeleted {
 		sizeStr = styleDeleted.Render(fmt.Sprintf("%*s", sizeWidth, formatSize(r.SizeBytes)))
+	} else if r.Status == model.StatusDeleting {
+		sizeStr = styleDeleting.Render(fmt.Sprintf("%*s", sizeWidth, "deleting…"))
 	} else if r.Status == model.StatusError {
 		sizeStr = styleError.Render(fmt.Sprintf("%*s", sizeWidth, "ERROR"))
 	} else {
@@ -112,6 +115,9 @@ func RenderCompactRow(r model.Result, isCursor bool, isSelected bool, width int)
 	if r.Status == model.StatusDeleted {
 		namePart = styleDeleted.Render(name)
 		pathPart = styleDeleted.Render(truncated)
+	} else if r.Status == model.StatusDeleting {
+		namePart = styleDeleting.Render(name)
+		pathPart = styleDeleting.Render(truncated)
 	} else if r.Status == model.StatusError {
 		namePart = styleError.Render(name)
 		pathPart = styleError.Render(truncated)
