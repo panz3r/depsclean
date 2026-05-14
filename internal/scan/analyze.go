@@ -112,18 +112,116 @@ type packageJSON struct {
 }
 
 func readPackageMetadata(r *model.Result) {
-	pkgPath := filepath.Join(r.ProjectPath, "package.json")
-	data, err := os.ReadFile(pkgPath)
-	if err != nil {
+	if r.Basename == "node_modules" {
+		pkgPath := filepath.Join(r.ProjectPath, "package.json")
+		data, err := os.ReadFile(pkgPath)
+		if err == nil {
+			var pkg packageJSON
+			if err := json.Unmarshal(data, &pkg); err == nil {
+				r.PackageName = pkg.Name
+				r.PackageVersion = pkg.Version
+				r.PackageManager = detectPackageManager(r.ProjectPath, pkg.PackageManager)
+			}
+		}
+		// If PM is still unknown, inherit from nearest ancestor Node project.
+		if r.PackageManager == model.PackageManagerUnknown {
+			r.PackageManager = findAncestorNodePackageManager(r.ProjectPath)
+		}
 		return
 	}
-	var pkg packageJSON
-	if err := json.Unmarshal(data, &pkg); err != nil {
-		return
+
+	// Non-node_modules basenames: detect ecosystem from directory name + files.
+	r.PackageManager = detectEcosystem(r.ProjectPath, r.Basename)
+}
+
+// detectEcosystem infers the package manager / ecosystem from the target
+// directory's basename and files present in projectPath.
+func detectEcosystem(projectPath, basename string) model.PackageManager {
+	switch basename {
+	case ".venv", "venv", "__pycache__", ".pytest_cache", ".mypy_cache":
+		return model.PackageManagerPython
+
+	case "target":
+		if fileExists(filepath.Join(projectPath, "Cargo.toml")) {
+			return model.PackageManagerRust
+		}
+		if fileExists(filepath.Join(projectPath, "pom.xml")) {
+			return model.PackageManagerJava
+		}
+		return model.PackageManagerUnknown
+
+	case ".gradle":
+		return model.PackageManagerJava
+
+	case "build":
+		if fileExists(filepath.Join(projectPath, "pom.xml")) ||
+			fileExists(filepath.Join(projectPath, "build.gradle")) ||
+			fileExists(filepath.Join(projectPath, "build.gradle.kts")) {
+			return model.PackageManagerJava
+		}
+		return model.PackageManagerUnknown
+
+	case "vendor":
+		if fileExists(filepath.Join(projectPath, "go.mod")) {
+			return model.PackageManagerGo
+		}
+		if fileExists(filepath.Join(projectPath, "composer.json")) {
+			return model.PackageManagerPHP
+		}
+		if fileExists(filepath.Join(projectPath, "Gemfile")) {
+			return model.PackageManagerRuby
+		}
+		return model.PackageManagerUnknown
+
+	case ".bundle":
+		return model.PackageManagerRuby
+
+	case "bundle":
+		if filepath.Base(projectPath) == "vendor" {
+			return model.PackageManagerRuby
+		}
+		return model.PackageManagerUnknown
 	}
-	r.PackageName = pkg.Name
-	r.PackageVersion = pkg.Version
-	r.PackageManager = detectPackageManager(r.ProjectPath, pkg.PackageManager)
+
+	return model.PackageManagerUnknown
+}
+
+// findAncestorNodePackageManager walks up the directory tree starting from the
+// parent of projectPath and returns the first Node lockfile-based PM found.
+func findAncestorNodePackageManager(projectPath string) model.PackageManager {
+	lockfiles := []struct {
+		name string
+		pm   model.PackageManager
+	}{
+		{"bun.lockb", model.PackageManagerBun},
+		{"bun.lock", model.PackageManagerBun},
+		{"pnpm-lock.yaml", model.PackageManagerPNPM},
+		{"yarn.lock", model.PackageManagerYarn},
+		{"package-lock.json", model.PackageManagerNPM},
+		{"npm-shrinkwrap.json", model.PackageManagerNPM},
+	}
+
+	dir := filepath.Dir(projectPath)
+	for {
+		parent := filepath.Dir(dir)
+		if parent == dir {
+			// Reached filesystem root.
+			break
+		}
+		for _, lf := range lockfiles {
+			if fileExists(filepath.Join(dir, lf.name)) {
+				return lf.pm
+			}
+		}
+		dir = parent
+	}
+	return model.PackageManagerUnknown
+}
+
+// fileExists reports whether the named file or directory exists.
+func fileExists(path string) bool {
+	_, err := os.Stat(path)
+	return err == nil
 }
 
 func detectPackageManager(projectPath, pkgManagerField string) model.PackageManager {
