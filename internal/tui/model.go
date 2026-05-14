@@ -573,10 +573,9 @@ var (
 	styleTooSmall    = lipgloss.NewStyle().Foreground(lipgloss.Color("#FF5F57")).Bold(true)
 )
 
-const depscleanLogo = `    __                 ________
-   / /  ___  ___ ____ / __/ / /  ___ ___ ___
-  / _ \/ -_)/ _ \` + "`" + `(_-</ _// / _ \/ -_) _ (_-<
- /_.__/\__/ \_,_/___/___/_/_.__/\__/_//_/___/`
+const depscleanLogo = `╔╦╗┌─┐┌─┐┌─┐┌─┐┬  ┌─┐┌─┐┌┐┌
+ ║║├┤ ├─┘└─┐│  │  ├┤ ├─┤│││
+═╩╝└─┘┴  └─┘└─┘┴─┘└─┘┴ ┴┘└┘`
 
 func renderHeader(rightText string, width int) string {
 	logoLines := strings.Split(depscleanLogo, "\n")
