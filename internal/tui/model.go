@@ -7,13 +7,20 @@ import (
 
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
+	deletepkg "github.com/panz3r/npclean/internal/delete"
 	"github.com/panz3r/npclean/internal/model"
+	"github.com/panz3r/npclean/internal/platform"
 	"github.com/panz3r/npclean/internal/scan"
 )
 
 // Messages
 type ResultMsg struct{ R model.Result }
 type ScanDoneMsg struct{ Total int }
+
+type deleteResultMsg struct {
+	id  string
+	err error
+}
 
 type ScanState int
 
@@ -39,8 +46,11 @@ type Model struct {
 	scanFound      int
 	errors         []string
 	startCmd       tea.Cmd
-	resultsIndex   map[string]int // ID → index in allResults (for O(1) in-place update)
-	cursorID       string         // stable cursor identity across async updates and re-sorts
+	resultsIndex   map[string]int  // ID → index in allResults (for O(1) in-place update)
+	cursorID       string          // stable cursor identity across async updates and re-sorts
+	deleter        *deletepkg.Deleter // nil in demo mode
+	rangeAnchor    string          // ID of range selection anchor; "" = not active
+	dryRun         bool
 }
 
 func New() Model {
@@ -49,6 +59,15 @@ func New() Model {
 
 func NewWithScan(startCmd tea.Cmd) Model {
 	return newModel(startCmd)
+}
+
+func NewWithScanAndDeleter(startCmd tea.Cmd, d *deletepkg.Deleter) Model {
+	m := newModel(startCmd)
+	m.deleter = d
+	if d != nil {
+		m.dryRun = d.DryRun
+	}
+	return m
 }
 
 func newModel(startCmd tea.Cmd) Model {
@@ -92,6 +111,9 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	case ScanDoneMsg:
 		m.scanState = ScanStateDone
+
+	case deleteResultMsg:
+		m.applyDeleteResult(msg)
 
 	case tea.KeyMsg:
 		if m.searchMode {
@@ -198,9 +220,36 @@ func (m Model) updateNormal(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 			}
 		}
 
+	case matchKey(key, m.keys.SelectAll):
+		m.toggleSelectAll()
+
+	case matchKey(key, m.keys.RangeSelect):
+		m.handleRangeSelect()
+
+	case matchKey(key, m.keys.Delete):
+		if m.deleter != nil && len(m.visibleResults) > 0 && m.cursor < len(m.visibleResults) {
+			r := m.visibleResults[m.cursor]
+			if r.Status != model.StatusDeleting && r.Status != model.StatusDeleted {
+				m.setStatus(r.ID, model.StatusDeleting)
+				return m, m.makeDeleteCmd(r)
+			}
+		}
+
+	case matchKey(key, m.keys.DeleteSelected):
+		return m, m.deleteSelected()
+
+	case matchKey(key, m.keys.OpenFolder):
+		if len(m.visibleResults) > 0 && m.cursor < len(m.visibleResults) {
+			r := m.visibleResults[m.cursor]
+			if err := platform.Open(r.ProjectPath); err != nil {
+				m.errors = append(m.errors, "open folder: "+err.Error())
+			}
+		}
+
 	case matchKey(key, m.keys.Escape):
 		m.selected = make(map[string]bool)
 		m.showDetails = false
+		m.rangeAnchor = ""
 	}
 
 	return m, nil
@@ -260,6 +309,127 @@ func (m *Model) updateResult(r model.Result) {
 	}
 	m.allResults[idx] = r
 	m.refilterAndSort()
+}
+
+// makeDeleteCmd returns a Cmd that runs deletion in the background.
+func (m *Model) makeDeleteCmd(r model.Result) tea.Cmd {
+	d := m.deleter
+	return func() tea.Msg {
+		err := d.Delete(r)
+		return deleteResultMsg{id: r.ID, err: err}
+	}
+}
+
+// applyDeleteResult processes the result of an async deletion.
+func (m *Model) applyDeleteResult(msg deleteResultMsg) {
+	idx, ok := m.resultsIndex[msg.id]
+	if !ok {
+		return
+	}
+	if msg.err != nil {
+		m.allResults[idx].Status = model.StatusError
+		m.allResults[idx].ErrorMsg = msg.err.Error()
+	} else {
+		m.allResults[idx].Status = model.StatusDeleted
+		m.allResults[idx].ErrorMsg = ""
+	}
+	m.refilterAndSort()
+}
+
+// setStatus updates the status of the result with the given ID in allResults.
+func (m *Model) setStatus(id string, s model.Status) {
+	idx, ok := m.resultsIndex[id]
+	if !ok {
+		return
+	}
+	m.allResults[idx].Status = s
+	m.refilterAndSort()
+}
+
+// toggleSelectAll selects all visible non-deleted rows, or deselects all if all are already selected.
+func (m *Model) toggleSelectAll() {
+	eligible := make([]string, 0)
+	for _, r := range m.visibleResults {
+		if r.Status != model.StatusDeleted && r.Status != model.StatusDeleting {
+			eligible = append(eligible, r.ID)
+		}
+	}
+	allSelected := len(eligible) > 0
+	for _, id := range eligible {
+		if !m.selected[id] {
+			allSelected = false
+			break
+		}
+	}
+	if allSelected {
+		m.selected = make(map[string]bool)
+	} else {
+		for _, id := range eligible {
+			m.selected[id] = true
+		}
+	}
+}
+
+// handleRangeSelect sets the range anchor on first press, then selects the range on second press.
+func (m *Model) handleRangeSelect() {
+	if len(m.visibleResults) == 0 || m.cursor >= len(m.visibleResults) {
+		return
+	}
+	cursorID := m.visibleResults[m.cursor].ID
+	if m.rangeAnchor == "" {
+		m.rangeAnchor = cursorID
+		return
+	}
+	// Find anchor position in visibleResults.
+	anchorIdx := -1
+	for i, r := range m.visibleResults {
+		if r.ID == m.rangeAnchor {
+			anchorIdx = i
+			break
+		}
+	}
+	if anchorIdx == -1 {
+		// Anchor is no longer visible; reset and start fresh.
+		m.rangeAnchor = cursorID
+		return
+	}
+	lo, hi := anchorIdx, m.cursor
+	if lo > hi {
+		lo, hi = hi, lo
+	}
+	for i := lo; i <= hi; i++ {
+		r := m.visibleResults[i]
+		if r.Status != model.StatusDeleted && r.Status != model.StatusDeleting {
+			m.selected[r.ID] = true
+		}
+	}
+	m.rangeAnchor = ""
+}
+
+// deleteSelected initiates deletion for all selected items.
+func (m *Model) deleteSelected() tea.Cmd {
+	if m.deleter == nil {
+		return nil
+	}
+	cmds := make([]tea.Cmd, 0)
+	for id := range m.selected {
+		idx, ok := m.resultsIndex[id]
+		if !ok {
+			continue
+		}
+		r := m.allResults[idx]
+		if r.Status == model.StatusDeleting || r.Status == model.StatusDeleted {
+			continue
+		}
+		m.setStatus(id, model.StatusDeleting)
+		r = m.allResults[idx] // re-fetch after setStatus
+		cmds = append(cmds, m.makeDeleteCmd(r))
+	}
+	m.selected = make(map[string]bool)
+	if len(cmds) == 0 {
+		return nil
+	}
+	return tea.Batch(cmds...)
 }
 
 func (m *Model) refilterAndSort() {
@@ -440,6 +610,7 @@ func (m Model) View() string {
 		SortModeLabel(m.sortMode),
 		rowModeLabel,
 		m.scanState == ScanStateDone,
+		m.dryRun,
 		w,
 	))
 

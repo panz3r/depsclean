@@ -5,6 +5,7 @@ import (
 
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/panz3r/npclean/internal/config"
+	"github.com/panz3r/npclean/internal/delete"
 	"github.com/panz3r/npclean/internal/scan"
 	"github.com/panz3r/npclean/internal/tui"
 )
@@ -18,7 +19,12 @@ func RunTUI(cfg config.Config) error {
 	events := scan.Analyze(ctx, discoveries, 0)
 
 	startCmd := tui.WaitForScanEvent(events)
-	m := tui.NewWithScan(startCmd)
+	targets := cfg.Targets
+	if len(targets) == 0 {
+		targets = []string{"node_modules"}
+	}
+	d := &delete.Deleter{DryRun: cfg.DryRun, Targets: targets}
+	m := tui.NewWithScanAndDeleter(startCmd, d)
 	p := tea.NewProgram(m, tea.WithAltScreen())
 	_, err := p.Run()
 	return err

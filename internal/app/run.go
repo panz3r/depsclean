@@ -2,10 +2,13 @@ package app
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"os"
 
 	"github.com/panz3r/npclean/internal/config"
+	"github.com/panz3r/npclean/internal/delete"
+	"github.com/panz3r/npclean/internal/model"
 	"github.com/panz3r/npclean/internal/output"
 	"github.com/panz3r/npclean/internal/scan"
 )
@@ -50,6 +53,92 @@ func Run(cfg config.Config) error {
 				fmt.Printf("done: found %d target(s)\n", e.Total)
 			}
 		}
+	}
+	return nil
+}
+
+// fmtBytes formats a byte count as a human-readable string.
+func fmtBytes(b int64) string {
+	const (
+		GB = 1 << 30
+		MB = 1 << 20
+		KB = 1 << 10
+	)
+	switch {
+	case b >= GB:
+		return fmt.Sprintf("%.1f GB", float64(b)/GB)
+	case b >= MB:
+		return fmt.Sprintf("%.1f MB", float64(b)/MB)
+	case b >= KB:
+		return fmt.Sprintf("%.1f KB", float64(b)/KB)
+	default:
+		return fmt.Sprintf("%d B", b)
+	}
+}
+
+// RunDeleteAll scans for dependency directories and deletes them.
+// confirmed must be true (or cfg.DryRun must be true) to perform actual deletions.
+func RunDeleteAll(cfg config.Config, confirmed bool) error {
+	ctx := context.Background()
+	discoveries := scan.Discover(cfg.RootDir, cfg)
+	events := scan.Analyze(ctx, discoveries, 0)
+
+	var results []model.Result
+	for ev := range events {
+		if e, ok := ev.(scan.AnalyzedEvent); ok {
+			results = append(results, e.Result)
+		}
+	}
+
+	if len(results) == 0 {
+		fmt.Println("No dependency directories found.")
+		return nil
+	}
+
+	var totalBytes int64
+	for _, r := range results {
+		totalBytes += r.SizeBytes
+	}
+	fmt.Printf("Found %d directories totalling %s\n", len(results), fmtBytes(totalBytes))
+
+	if cfg.DryRun {
+		fmt.Println("(dry-run: no files will be deleted)")
+	}
+
+	if !confirmed && !cfg.DryRun {
+		fmt.Println("Use --yes to confirm deletion.")
+		return nil
+	}
+
+	targets := cfg.Targets
+	if len(targets) == 0 {
+		targets = []string{"node_modules"}
+	}
+	d := &delete.Deleter{DryRun: cfg.DryRun, Targets: targets}
+
+	var deleted, failed int
+	var firstErr error
+	for _, r := range results {
+		err := d.Delete(r)
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "  ✗ %s: %v\n", r.Path, err)
+			failed++
+			if firstErr == nil {
+				firstErr = err
+			}
+		} else {
+			if cfg.DryRun {
+				fmt.Printf("  ~ %s (%s)\n", r.Path, fmtBytes(r.SizeBytes))
+			} else {
+				fmt.Printf("  ✓ %s (%s)\n", r.Path, fmtBytes(r.SizeBytes))
+			}
+			deleted++
+		}
+	}
+
+	fmt.Printf("\nSummary: %d deleted, %d failed\n", deleted, failed)
+	if failed > 0 {
+		return errors.New("some deletions failed")
 	}
 	return nil
 }
