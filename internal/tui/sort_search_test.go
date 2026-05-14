@@ -195,8 +195,51 @@ func TestSortByPathAsc_OrderCorrect(t *testing.T) {
 	for i := 1; i < len(m.visibleResults); i++ {
 		a := m.visibleResults[i-1].ProjectPath
 		b := m.visibleResults[i].ProjectPath
-		if a > b {
-			t.Errorf("path-asc sort broken at index %d: %q > %q", i, a, b)
+		if compareHierarchicalPath(a, b) > 0 {
+			t.Errorf("path-asc sort broken at index %d: %q should not come before %q", i, a, b)
+		}
+	}
+}
+
+func TestSortByPathAsc_ParentBeforeDescendant(t *testing.T) {
+	m := newModel(nil)
+	m.sortMode = SortByPathAsc
+
+	results := []model.Result{
+		{
+			ID:          "/repo/packages/api/node_modules",
+			Path:        "/repo/packages/api/node_modules",
+			ProjectPath: "/repo/packages/api",
+			Basename:    "node_modules",
+			Status:      model.StatusReady,
+		},
+		{
+			ID:          "/repo/node_modules",
+			Path:        "/repo/node_modules",
+			ProjectPath: "/repo",
+			Basename:    "node_modules",
+			Status:      model.StatusReady,
+		},
+		{
+			ID:          "/repo/packages/api/subpkg/node_modules",
+			Path:        "/repo/packages/api/subpkg/node_modules",
+			ProjectPath: "/repo/packages/api/subpkg",
+			Basename:    "node_modules",
+			Status:      model.StatusReady,
+		},
+	}
+	for _, r := range results {
+		m.addResult(r)
+	}
+
+	want := []string{
+		"/repo",
+		"/repo/packages/api",
+		"/repo/packages/api/subpkg",
+	}
+	for i, projectPath := range want {
+		if m.visibleResults[i].ProjectPath != projectPath {
+			t.Fatalf("visibleResults[%d] = %q, want %q", i, m.visibleResults[i].ProjectPath, projectPath)
 		}
 	}
 }
