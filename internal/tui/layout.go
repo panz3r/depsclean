@@ -5,6 +5,7 @@ const (
 	MinHeight    = 20
 	HeaderHeight = 1
 	StatusHeight = 2
+	DetailsHeight = 12
 )
 
 type Layout struct {
@@ -13,7 +14,7 @@ type Layout struct {
 	SearchVisible         bool
 }
 
-func NewLayout(w, h int, searchVisible bool) Layout {
+func NewLayout(w, h int, searchVisible bool, detailsVisible bool) Layout {
 	l := Layout{
 		Width:         w,
 		Height:        h,
@@ -24,6 +25,9 @@ func NewLayout(w, h int, searchVisible bool) Layout {
 	used := HeaderHeight + 1 + 1 + StatusHeight
 	if searchVisible {
 		used += 2 // search bar + separator
+	}
+	if detailsVisible {
+		used += DetailsHeight + 1 // details panel + separator
 	}
 	l.ListHeight = h - used
 	if l.ListHeight < 0 {

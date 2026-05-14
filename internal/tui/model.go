@@ -8,6 +8,7 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
 	"github.com/panz3r/npclean/internal/model"
+	"github.com/panz3r/npclean/internal/scan"
 )
 
 // Messages
@@ -37,38 +38,57 @@ type Model struct {
 	scanState      ScanState
 	scanFound      int
 	errors         []string
+	startCmd       tea.Cmd
+	resultsIndex   map[string]int // ID → index in allResults (for O(1) in-place update)
+	cursorID       string         // stable cursor identity across async updates and re-sorts
 }
 
 func New() Model {
+	return newModel(FixtureStartCmd())
+}
+
+func NewWithScan(startCmd tea.Cmd) Model {
+	return newModel(startCmd)
+}
+
+func newModel(startCmd tea.Cmd) Model {
 	return Model{
-		keys:     DefaultKeyBindings(),
-		layout:   NewLayout(80, 24, false),
-		selected: make(map[string]bool),
-		sortMode: SortBySizeDesc,
-		rowMode:  RowModeCompact,
+		keys:         DefaultKeyBindings(),
+		layout:       NewLayout(80, 24, false, false),
+		selected:     make(map[string]bool),
+		resultsIndex: make(map[string]int),
+		sortMode:     SortBySizeDesc,
+		rowMode:      RowModeCompact,
+		startCmd:     startCmd,
 	}
 }
 
 func (m Model) Init() tea.Cmd {
-	fixtures := FixtureResults()
-	cmds := make([]tea.Cmd, 0, len(fixtures)+1)
-	for _, r := range fixtures {
-		r := r
-		cmds = append(cmds, func() tea.Msg { return ResultMsg{R: r} })
-	}
-	cmds = append(cmds, func() tea.Msg { return ScanDoneMsg{Total: len(fixtures)} })
-	return tea.Sequence(cmds...)
+	return m.startCmd
 }
 
 func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
 	case tea.WindowSizeMsg:
-		m.layout = NewLayout(msg.Width, msg.Height, m.searchMode)
+		m.layout = NewLayout(msg.Width, msg.Height, m.searchMode, m.showDetails)
+
+	case scanEventMsg:
+		cmd := WaitForScanEvent(msg.ch) // schedule next read
+		switch e := msg.ev.(type) {
+		case scan.DiscoveredEvent:
+			m.addResult(e.Result)
+		case scan.AnalyzedEvent:
+			m.updateResult(e.Result)
+		case scan.ErrorEvent:
+			m.errors = append(m.errors, e.Err.Error())
+		case scan.DoneEvent:
+			m.scanState = ScanStateDone
+			m.scanFound = e.Total
+		}
+		return m, cmd
 
 	case ResultMsg:
-		m.allResults = append(m.allResults, msg.R)
-		m.scanFound++
-		m.refilterAndSort()
+		m.addResult(msg.R)
 
 	case ScanDoneMsg:
 		m.scanState = ScanStateDone
@@ -88,11 +108,11 @@ func (m Model) updateSearch(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	case "esc":
 		m.searchMode = false
 		m.searchQuery = ""
-		m.layout = NewLayout(m.layout.Width, m.layout.Height, false)
+		m.layout = NewLayout(m.layout.Width, m.layout.Height, false, m.showDetails)
 		m.refilterAndSort()
 	case "enter":
 		m.searchMode = false
-		m.layout = NewLayout(m.layout.Width, m.layout.Height, false)
+		m.layout = NewLayout(m.layout.Width, m.layout.Height, false, m.showDetails)
 	case "backspace":
 		if len(m.searchQuery) > 0 {
 			m.searchQuery = m.searchQuery[:len(m.searchQuery)-1]
@@ -137,16 +157,22 @@ func (m Model) updateNormal(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	case matchKey(key, m.keys.GotoTop):
 		m.cursor = 0
 		m.offset = 0
+		if len(m.visibleResults) > 0 {
+			m.cursorID = m.visibleResults[0].ID
+		}
 
 	case matchKey(key, m.keys.GotoBottom):
 		if len(m.visibleResults) > 0 {
 			m.cursor = len(m.visibleResults) - 1
 		}
 		m.clampOffset()
+		if len(m.visibleResults) > 0 {
+			m.cursorID = m.visibleResults[m.cursor].ID
+		}
 
 	case matchKey(key, m.keys.SearchToggle):
 		m.searchMode = true
-		m.layout = NewLayout(m.layout.Width, m.layout.Height, true)
+		m.layout = NewLayout(m.layout.Width, m.layout.Height, true, m.showDetails)
 
 	case matchKey(key, m.keys.SortCycle):
 		m.sortMode = NextSortMode(m.sortMode)
@@ -161,6 +187,7 @@ func (m Model) updateNormal(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 
 	case matchKey(key, m.keys.DetailsToggle):
 		m.showDetails = !m.showDetails
+		m.layout = NewLayout(m.layout.Width, m.layout.Height, m.searchMode, m.showDetails)
 
 	case matchKey(key, m.keys.SelectToggle):
 		if len(m.visibleResults) > 0 && m.cursor < len(m.visibleResults) {
@@ -188,6 +215,9 @@ func (m *Model) moveCursor(delta int) {
 		m.cursor = len(m.visibleResults) - 1
 	}
 	m.clampOffset()
+	if m.cursor >= 0 && m.cursor < len(m.visibleResults) {
+		m.cursorID = m.visibleResults[m.cursor].ID
+	}
 }
 
 func (m *Model) clampOffset() {
@@ -211,7 +241,33 @@ func (m *Model) clampOffset() {
 	}
 }
 
+func (m *Model) addResult(r model.Result) {
+	if _, exists := m.resultsIndex[r.ID]; exists {
+		return // already known
+	}
+	m.resultsIndex[r.ID] = len(m.allResults)
+	m.allResults = append(m.allResults, r)
+	m.scanFound++
+	m.refilterAndSort()
+}
+
+func (m *Model) updateResult(r model.Result) {
+	idx, ok := m.resultsIndex[r.ID]
+	if !ok {
+		// Not yet in the list - treat as new
+		m.addResult(r)
+		return
+	}
+	m.allResults[idx] = r
+	m.refilterAndSort()
+}
+
 func (m *Model) refilterAndSort() {
+	// Save cursor ID before rebuild
+	if m.cursor >= 0 && m.cursor < len(m.visibleResults) {
+		m.cursorID = m.visibleResults[m.cursor].ID
+	}
+
 	q := strings.ToLower(m.searchQuery)
 	visible := make([]model.Result, 0, len(m.allResults))
 	for _, r := range m.allResults {
@@ -255,7 +311,18 @@ func (m *Model) refilterAndSort() {
 
 	m.visibleResults = visible
 
-	// Clamp cursor
+	// Restore cursor by ID for stable navigation under async updates
+	if m.cursorID != "" {
+		for i, r := range m.visibleResults {
+			if r.ID == m.cursorID {
+				m.cursor = i
+				m.clampOffset()
+				return
+			}
+		}
+	}
+
+	// Fallback: clamp cursor
 	if len(m.visibleResults) == 0 {
 		m.cursor = 0
 		m.offset = 0
@@ -345,6 +412,15 @@ func (m Model) View() string {
 	fillerLines := m.layout.ListHeight - rendered*linesPerRow
 	for i := 0; i < fillerLines; i++ {
 		sb.WriteString(strings.Repeat(" ", w))
+		sb.WriteString("\n")
+	}
+
+	// Details panel
+	if m.showDetails && m.cursor >= 0 && m.cursor < len(m.visibleResults) {
+		r := m.visibleResults[m.cursor]
+		sb.WriteString(styleSeparator.Render(strings.Repeat("─", w)))
+		sb.WriteString("\n")
+		sb.WriteString(RenderDetailsPanel(r, w))
 		sb.WriteString("\n")
 	}
 
