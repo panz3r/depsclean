@@ -3,7 +3,7 @@ package tui
 const (
 	MinWidth      = 80
 	MinHeight     = 20
-	HeaderHeight  = 1
+	HeaderHeight  = 4
 	StatusHeight  = 2
 	DetailsHeight = 12
 )
@@ -21,7 +21,7 @@ func NewLayout(w, h int, searchVisible bool, detailsVisible bool) Layout {
 		SearchVisible: searchVisible,
 		ListWidth:     w,
 	}
-	// header(1) + separator(1) + list + separator(1) + statusbar(2)
+	// header(4) + separator(1) + list + separator(1) + statusbar(2)
 	used := HeaderHeight + 1 + 1 + StatusHeight
 	if searchVisible {
 		used += 2 // search bar + separator

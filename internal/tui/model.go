@@ -573,6 +573,35 @@ var (
 	styleTooSmall    = lipgloss.NewStyle().Foreground(lipgloss.Color("#FF5F57")).Bold(true)
 )
 
+const depscleanLogo = `    __                 ________
+   / /  ___  ___ ____ / __/ / /  ___ ___ ___
+  / _ \/ -_)/ _ \` + "`" + `(_-</ _// / _ \/ -_) _ (_-<
+ /_.__/\__/ \_,_/___/___/_/_.__/\__/_//_/___/`
+
+func renderHeader(rightText string, width int) string {
+	logoLines := strings.Split(depscleanLogo, "\n")
+	rendered := make([]string, 0, len(logoLines))
+
+	for i, raw := range logoLines {
+		line := styleHeader.Render(raw)
+		if i == 0 {
+			gap := width - lipgloss.Width(line) - lipgloss.Width(rightText)
+			if gap < 1 {
+				gap = 1
+			}
+			line += strings.Repeat(" ", gap) + rightText
+		}
+
+		lineWidth := lipgloss.Width(line)
+		if lineWidth < width {
+			line += strings.Repeat(" ", width-lineWidth)
+		}
+		rendered = append(rendered, line)
+	}
+
+	return strings.Join(rendered, "\n")
+}
+
 func (m Model) View() string {
 	if m.layout.TooSmall() {
 		return styleTooSmall.Render("Terminal too small (min 80×20)")
@@ -582,21 +611,13 @@ func (m Model) View() string {
 	w := m.layout.Width
 
 	// Header
-	title := styleHeader.Render("depsclean")
 	var rightText string
 	if m.scanState == ScanStateDone {
 		rightText = styleStatusDone.Render("✓ scan complete") + styleHeaderRight.Render(fmt.Sprintf(" (%d found)", m.scanFound))
 	} else {
 		rightText = styleStatusScan.Render("scanning…") + styleHeaderRight.Render(fmt.Sprintf(" (%d found)", m.scanFound))
 	}
-	titleWidth := lipgloss.Width(title)
-	rightWidth := lipgloss.Width(rightText)
-	gap := w - titleWidth - rightWidth
-	if gap < 1 {
-		gap = 1
-	}
-	header := title + strings.Repeat(" ", gap) + rightText
-	sb.WriteString(header)
+	sb.WriteString(renderHeader(rightText, w))
 	sb.WriteString("\n")
 
 	// Separator
