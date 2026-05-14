@@ -21,10 +21,24 @@ func buildRootCmd() *cobra.Command {
 	root := &cobra.Command{
 		Use:   "npclean",
 		Short: "Clean up node_modules directories to reclaim disk space",
+		RunE: func(cmd *cobra.Command, args []string) error {
+			return app.RunTUI()
+		},
 	}
 
 	root.AddCommand(buildScanCmd())
+	root.AddCommand(buildUICmd())
 	return root
+}
+
+func buildUICmd() *cobra.Command {
+	return &cobra.Command{
+		Use:   "ui",
+		Short: "Launch the interactive TUI",
+		RunE: func(cmd *cobra.Command, args []string) error {
+			return app.RunTUI()
+		},
+	}
 }
 
 func buildScanCmd() *cobra.Command {
@@ -44,6 +58,9 @@ func buildScanCmd() *cobra.Command {
 
 	cmd.Flags().StringVar(&cfg.RootDir, "root", cfg.RootDir, "Root directory to scan")
 	cmd.Flags().StringVar(&cfg.Profile, "profile", cfg.Profile, "Built-in profile to use (e.g. node)")
+	cmd.Flags().StringArrayVar(&cfg.Excludes, "exclude", cfg.Excludes, "Patterns to exclude (can be repeated)")
+	cmd.Flags().BoolVar(&cfg.SkipHidden, "skip-hidden", cfg.SkipHidden, "Skip hidden directories")
+	cmd.Flags().IntVar(&cfg.MaxDepth, "max-depth", cfg.MaxDepth, "Maximum directory depth to scan (0=unlimited)")
 
 	return cmd
 }
