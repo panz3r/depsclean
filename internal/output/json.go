@@ -6,7 +6,7 @@ import (
 	"io"
 	"time"
 
-	"github.com/panz3r/npclean/internal/model"
+	"github.com/panz3r/depsclean/internal/model"
 )
 
 // resultJSON is the JSON representation of a model.Result with extra human-readable fields.

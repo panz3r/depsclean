@@ -4,10 +4,10 @@ import (
 	"context"
 
 	tea "github.com/charmbracelet/bubbletea"
-	"github.com/panz3r/npclean/internal/config"
-	"github.com/panz3r/npclean/internal/delete"
-	"github.com/panz3r/npclean/internal/scan"
-	"github.com/panz3r/npclean/internal/tui"
+	"github.com/panz3r/depsclean/internal/config"
+	"github.com/panz3r/depsclean/internal/delete"
+	"github.com/panz3r/depsclean/internal/scan"
+	"github.com/panz3r/depsclean/internal/tui"
 )
 
 // RunTUI launches the interactive TUI connected to a live scan of cfg.

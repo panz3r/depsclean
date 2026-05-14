@@ -20,7 +20,7 @@ type CheckResult struct {
 	Err             error
 }
 
-// Check queries the GitHub Releases API for panz3r/npclean and returns
+// Check queries the GitHub Releases API for panz3r/depsclean and returns
 // the latest release tag. The request is made with a short timeout (5 s).
 // If Version == "dev", returns CheckResult{CurrentVersion: "dev"} without making an HTTP request.
 func Check(ctx context.Context) CheckResult {
@@ -38,7 +38,7 @@ func Check(ctx context.Context) CheckResult {
 	}
 
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet,
-		"https://api.github.com/repos/panz3r/npclean/releases/latest", nil)
+		"https://api.github.com/repos/panz3r/depsclean/releases/latest", nil)
 	if err != nil {
 		result.Err = err
 		return result
@@ -74,6 +74,6 @@ func FormatNotice(r CheckResult) string {
 	if r.Err != nil || !r.UpdateAvailable {
 		return ""
 	}
-	return fmt.Sprintf("A new version is available: v%s (current: v%s)\nDownload: https://github.com/panz3r/npclean/releases/latest",
+	return fmt.Sprintf("A new version is available: v%s (current: v%s)\nDownload: https://github.com/panz3r/depsclean/releases/latest",
 		r.LatestVersion, r.CurrentVersion)
 }

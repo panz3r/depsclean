@@ -7,7 +7,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/panz3r/npclean/internal/model"
+	"github.com/panz3r/depsclean/internal/model"
 )
 
 func makeResult(id, path string, size int64) model.Result {

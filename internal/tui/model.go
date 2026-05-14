@@ -7,10 +7,10 @@ import (
 
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
-	deletepkg "github.com/panz3r/npclean/internal/delete"
-	"github.com/panz3r/npclean/internal/model"
-	"github.com/panz3r/npclean/internal/platform"
-	"github.com/panz3r/npclean/internal/scan"
+	deletepkg "github.com/panz3r/depsclean/internal/delete"
+	"github.com/panz3r/depsclean/internal/model"
+	"github.com/panz3r/depsclean/internal/platform"
+	"github.com/panz3r/depsclean/internal/scan"
 )
 
 // Messages

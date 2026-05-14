@@ -8,7 +8,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/panz3r/npclean/internal/model"
+	"github.com/panz3r/depsclean/internal/model"
 )
 
 // nonSensitiveTempDirForAnalyze creates a temp dir in the working directory to

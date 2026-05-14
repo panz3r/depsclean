@@ -5,7 +5,7 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/panz3r/npclean/internal/config"
+	"github.com/panz3r/depsclean/internal/config"
 )
 
 // nonSensitiveTempDir creates a temp dir in the current working directory so

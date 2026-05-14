@@ -7,9 +7,9 @@ import (
 	"strings"
 	"time"
 
-	"github.com/panz3r/npclean/internal/app"
-	"github.com/panz3r/npclean/internal/config"
-	"github.com/panz3r/npclean/internal/update"
+	"github.com/panz3r/depsclean/internal/app"
+	"github.com/panz3r/depsclean/internal/config"
+	"github.com/panz3r/depsclean/internal/update"
 	"github.com/spf13/cobra"
 )
 

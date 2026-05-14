@@ -2,7 +2,7 @@ package tui
 
 import (
 	tea "github.com/charmbracelet/bubbletea"
-	"github.com/panz3r/npclean/internal/scan"
+	"github.com/panz3r/depsclean/internal/scan"
 )
 
 // scanEventMsg carries one scan pipeline event and the channel for the next read.

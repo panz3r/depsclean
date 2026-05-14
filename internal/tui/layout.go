@@ -1,10 +1,10 @@
 package tui
 
 const (
-	MinWidth     = 80
-	MinHeight    = 20
-	HeaderHeight = 1
-	StatusHeight = 2
+	MinWidth      = 80
+	MinHeight     = 20
+	HeaderHeight  = 1
+	StatusHeight  = 2
 	DetailsHeight = 12
 )
 

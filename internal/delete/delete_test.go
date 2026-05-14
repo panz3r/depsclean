@@ -5,7 +5,7 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/panz3r/npclean/internal/model"
+	"github.com/panz3r/depsclean/internal/model"
 )
 
 func makeResult(path string) model.Result {

@@ -1,4 +1,4 @@
-module github.com/panz3r/npclean
+module github.com/panz3r/depsclean
 
 go 1.23.0
 

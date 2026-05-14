@@ -6,8 +6,8 @@ import (
 	"testing"
 
 	tea "github.com/charmbracelet/bubbletea"
-	"github.com/panz3r/npclean/internal/delete"
-	"github.com/panz3r/npclean/internal/model"
+	"github.com/panz3r/depsclean/internal/delete"
+	"github.com/panz3r/depsclean/internal/model"
 )
 
 // dryRunDeleter returns a Deleter suitable for tests (dry-run, node_modules target).
