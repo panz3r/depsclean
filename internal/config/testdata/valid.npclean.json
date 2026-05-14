@@ -1,0 +1,10 @@
+{
+  "version": 1,
+  "profile": "python",
+  "targets": [".venv", "__pycache__"],
+  "excludes": ["vendor", ".git"],
+  "skip_hidden": false,
+  "max_depth": 5,
+  "dry_run": true,
+  "output_format": "json"
+}

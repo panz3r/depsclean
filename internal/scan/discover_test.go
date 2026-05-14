@@ -201,3 +201,29 @@ func TestDiscover_MultipleTargets(t *testing.T) {
 		t.Fatalf("expected 3 discovered paths, got %d: %v", len(paths), paths)
 	}
 }
+
+func TestDiscover_MaxDepthZero_Unlimited(t *testing.T) {
+	root := nonSensitiveTempDir(t)
+
+	// Build a deep structure: root/a/b/c/d/e/node_modules (6 levels deep)
+	deepDir := filepath.Join(root, "a", "b", "c", "d", "e")
+	nmDeep := filepath.Join(deepDir, "node_modules")
+	if err := os.MkdirAll(nmDeep, 0755); err != nil {
+		t.Fatal(err)
+	}
+
+	cfg := config.Config{
+		Targets:    []string{"node_modules"},
+		SkipHidden: false,
+		MaxDepth:   0, // unlimited
+	}
+	events := collectEvents(Discover(root, cfg))
+	paths := discoveredPaths(events)
+
+	if len(paths) != 1 {
+		t.Fatalf("expected 1 discovered path with MaxDepth=0, got %d: %v", len(paths), paths)
+	}
+	if paths[0] != nmDeep {
+		t.Errorf("expected %q, got %q", nmDeep, paths[0])
+	}
+}
