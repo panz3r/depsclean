@@ -1,24 +1,24 @@
 package tui
 
 type KeyBindings struct {
-	Up              []string
-	Down            []string
-	PageUp          []string
-	PageDown        []string
-	GotoTop         []string
-	GotoBottom      []string
-	SearchToggle    []string
-	SortCycle       []string
-	RowModeToggle   []string
-	DetailsToggle   []string
-	SelectToggle    []string
-	SelectAll       []string
-	RangeSelect     []string
-	Delete          []string
-	DeleteSelected  []string
-	OpenFolder      []string
-	Escape          []string
-	Quit            []string
+	Up             []string
+	Down           []string
+	PageUp         []string
+	PageDown       []string
+	GotoTop        []string
+	GotoBottom     []string
+	SearchToggle   []string
+	SortCycle      []string
+	RowModeToggle  []string
+	DetailsToggle  []string
+	SelectToggle   []string
+	SelectAll      []string
+	RangeSelect    []string
+	Delete         []string
+	DeleteSelected []string
+	OpenFolder     []string
+	Escape         []string
+	Quit           []string
 }
 
 func DefaultKeyBindings() KeyBindings {

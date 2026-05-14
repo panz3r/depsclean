@@ -4,7 +4,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/panz3r/npclean/internal/model"
+	"github.com/panz3r/depsclean/internal/model"
 )
 
 // --- Additional sort mode tests ---

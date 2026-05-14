@@ -26,10 +26,10 @@ const (
 
 // Result represents a discovered dependency directory.
 type Result struct {
-	ID             string         // absolute path (stable identity)
-	Path           string         // absolute path to the target dir
-	ProjectPath    string         // parent project directory
-	Basename       string         // target dir name (e.g. "node_modules")
+	ID             string // absolute path (stable identity)
+	Path           string // absolute path to the target dir
+	ProjectPath    string // parent project directory
+	Basename       string // target dir name (e.g. "node_modules")
 	SizeBytes      int64
 	LastModified   time.Time
 	Status         Status

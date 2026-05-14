@@ -24,12 +24,12 @@
 ### From source (requires Go 1.23+)
 
 ```sh
-go install github.com/panz3r/npclean/cmd/depsclean@latest
+go install github.com/panz3r/depsclean/cmd/depsclean@latest
 ```
 
 ### Pre-built binaries
 
-Pre-built binaries will be available on the [GitHub Releases](https://github.com/panz3r/npclean/releases) page.
+Pre-built binaries will be available on the [GitHub Releases](https://github.com/panz3r/depsclean/releases) page.
 
 ---
 

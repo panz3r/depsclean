@@ -4,8 +4,8 @@ import (
 	"os"
 	"path/filepath"
 
-	"github.com/panz3r/npclean/internal/config"
-	"github.com/panz3r/npclean/internal/model"
+	"github.com/panz3r/depsclean/internal/config"
+	"github.com/panz3r/depsclean/internal/model"
 )
 
 // Discover walks rootDir and emits Events on the returned channel.

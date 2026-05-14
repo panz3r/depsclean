@@ -3,7 +3,7 @@ package tui
 import (
 	"time"
 
-	"github.com/panz3r/npclean/internal/model"
+	"github.com/panz3r/depsclean/internal/model"
 )
 
 // FixtureResults returns a set of realistic fake scan results for development/demo.

@@ -10,8 +10,8 @@ import (
 	"sync"
 	"time"
 
-	"github.com/panz3r/npclean/internal/model"
-	"github.com/panz3r/npclean/internal/platform"
+	"github.com/panz3r/depsclean/internal/model"
+	"github.com/panz3r/depsclean/internal/platform"
 )
 
 // Analyze enriches DiscoveredEvents from in with size, age, and package metadata.

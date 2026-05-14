@@ -6,11 +6,11 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/panz3r/npclean/internal/config"
-	"github.com/panz3r/npclean/internal/delete"
-	"github.com/panz3r/npclean/internal/model"
-	"github.com/panz3r/npclean/internal/output"
-	"github.com/panz3r/npclean/internal/scan"
+	"github.com/panz3r/depsclean/internal/config"
+	"github.com/panz3r/depsclean/internal/delete"
+	"github.com/panz3r/depsclean/internal/model"
+	"github.com/panz3r/depsclean/internal/output"
+	"github.com/panz3r/depsclean/internal/scan"
 )
 
 // Run executes the scan pipeline with the given configuration and prints

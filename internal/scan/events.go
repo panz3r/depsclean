@@ -1,6 +1,6 @@
 package scan
 
-import "github.com/panz3r/npclean/internal/model"
+import "github.com/panz3r/depsclean/internal/model"
 
 // Event is the base type for all scan pipeline events.
 type Event interface{ scanEvent() }
