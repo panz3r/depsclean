@@ -21,7 +21,7 @@
 
 ## Installation
 
-### From source (requires Go 1.23+)
+### From source (requires Go 1.26.3+)
 
 ```sh
 go install github.com/panz3r/depsclean/cmd/depsclean@latest
