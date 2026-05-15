@@ -1,0 +1,90 @@
+name: Test and Build
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    name: Test
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v6
+
+      - name: Set up Go
+        uses: actions/setup-go@v6
+        with:
+          go-version-file: "go.mod"
+          check-latest: true
+
+      - name: Run tests
+        run: go test ./...
+
+  build:
+    name: Build
+    runs-on: ubuntu-latest
+    needs: test
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v6
+
+      - name: Set up Go
+        uses: actions/setup-go@v6
+        with:
+          go-version-file: "go.mod"
+          check-latest: true
+
+      - name: Build
+        run: go build ./...
+
+  build-all-platforms:
+    name: Build for all platforms
+    runs-on: ubuntu-latest
+    needs:
+      - test
+      - build
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v6
+
+      - name: Set up Go
+        uses: actions/setup-go@v6
+        with:
+          go-version-file: "go.mod"
+          check-latest: true
+
+      - name: Build all platforms
+        run: |
+          mkdir -p builds
+
+          build() {
+            local goos="$1"
+            local goarch="$2"
+            local output="$3"
+            CGO_ENABLED=0 GOOS="$goos" GOARCH="$goarch" \
+              go build -trimpath -o "$output" ./cmd/depsclean
+          }
+
+          build linux amd64 builds/depsclean_linux_amd64
+          build linux arm64 builds/depsclean_linux_arm64
+          build darwin arm64 builds/depsclean_macos_arm64
+          build darwin amd64 builds/depsclean_macos_intel
+          build windows amd64 builds/depsclean_windows_amd64.exe
+          build windows arm64 builds/depsclean_windows_arm64.exe
+
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v7
+        with:
+          name: binaries
+          path: builds/
+          retention-days: 7
