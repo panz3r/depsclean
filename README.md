@@ -21,15 +21,51 @@
 
 ## Installation
 
+### Pre-built Binaries (Recommended)
+
+Download the latest pre-built binary for your platform from the [GitHub Releases](https://github.com/panz3r/depsclean/releases) page.
+
+#### Linux/macOS
+
+```bash
+# Download and install (replace $VERSION with the latest version)
+curl -L -o depsclean "https://github.com/panz3r/depsclean/releases/download/v$VERSION/depsclean_linux_amd64"
+
+# Make executable
+chmod +x depsclean
+
+# Move to PATH (optional)
+sudo mv depsclean /usr/local/bin/
+```
+
+#### macOS note
+
+If you install the binary manually on macOS, remove the quarantine attribute before first use:
+
+```bash
+xattr -dr com.apple.quarantine /usr/local/bin/depsclean
+```
+
+#### Windows
+
+1. Download `depsclean_windows_amd64.exe` from the [GitHub Releases](https://github.com/panz3r/depsclean/releases) page
+2. Rename it to `depsclean.exe` if you want
+3. Place it in a directory on your `PATH`, or run it directly
+
+#### Platform-specific downloads
+
+- **Linux AMD64**: `depsclean_linux_amd64`
+- **Linux ARM64**: `depsclean_linux_arm64`
+- **macOS Intel**: `depsclean_macos_intel`
+- **macOS Apple Silicon**: `depsclean_macos_arm64`
+- **Windows AMD64**: `depsclean_windows_amd64.exe`
+- **Windows ARM64**: `depsclean_windows_arm64.exe`
+
 ### From source (requires Go 1.26.3+)
 
 ```sh
 go install github.com/panz3r/depsclean/cmd/depsclean@latest
 ```
-
-### Pre-built binaries
-
-Pre-built binaries will be available on the [GitHub Releases](https://github.com/panz3r/depsclean/releases) page.
 
 ---
 
