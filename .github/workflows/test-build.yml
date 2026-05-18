@@ -1,0 +1,87 @@
+name: Test and Build
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    name: Test
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v6
+
+      - name: Set up Go
+        uses: actions/setup-go@v6
+        with:
+          go-version-file: "go.mod"
+          check-latest: true
+
+      - name: Run tests
+        run: go test ./...
+
+  build:
+    name: Build for ${{ matrix.goos }}/${{ matrix.goarch }}
+    runs-on: ${{ matrix.runs_on }}
+    needs:
+      - test
+
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - runs_on: ubuntu-latest
+            goos: linux
+            goarch: amd64
+            output: depsclean_linux_amd64
+          - runs_on: ubuntu-latest
+            goos: linux
+            goarch: arm64
+            output: depsclean_linux_arm64
+          - runs_on: macos-latest
+            goos: darwin
+            goarch: arm64
+            output: depsclean_macos_arm64
+          - runs_on: macos-latest
+            goos: darwin
+            goarch: amd64
+            output: depsclean_macos_intel
+          - runs_on: windows-latest
+            goos: windows
+            goarch: amd64
+            output: depsclean_windows_amd64.exe
+          - runs_on: windows-latest
+            goos: windows
+            goarch: arm64
+            output: depsclean_windows_arm64.exe
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v6
+
+      - name: Set up Go
+        uses: actions/setup-go@v6
+        with:
+          go-version-file: "go.mod"
+          check-latest: true
+
+      - name: Build target binary
+        shell: bash
+        run: |
+          mkdir -p builds
+          CGO_ENABLED=0 GOOS="${{ matrix.goos }}" GOARCH="${{ matrix.goarch }}" \
+            go build -trimpath -o "builds/${{ matrix.output }}" ./cmd/depsclean
+
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v7
+        with:
+          name: binaries-${{ matrix.goos }}-${{ matrix.goarch }}
+          path: builds/
+          retention-days: 7

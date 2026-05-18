@@ -1,0 +1,14 @@
+# Default owners for the repository
+*               @panz3r
+
+# Go code
+*.go            @panz3r
+go.mod          @panz3r
+go.sum          @panz3r
+
+# Documentation
+*.md            @panz3r
+LICENSE         @panz3r
+
+# GitHub configuration
+/.github/       @panz3r
