@@ -84,12 +84,14 @@ func TestFindConfigFile_NotFound(t *testing.T) {
 	if err := os.Chdir(tmp); err != nil {
 		t.Fatal(err)
 	}
-	defer os.Chdir(orig)
+	defer func() { _ = os.Chdir(orig) }()
 
 	// Temporarily override home to avoid picking up real user config
 	origHome := os.Getenv("HOME")
-	os.Setenv("HOME", tmp)
-	defer os.Setenv("HOME", origHome)
+	if err := os.Setenv("HOME", tmp); err != nil {
+		t.Fatal(err)
+	}
+	defer func() { _ = os.Setenv("HOME", origHome) }()
 
 	got := FindConfigFile()
 	if got != "" {
@@ -106,12 +108,14 @@ func TestFindConfigFile_FoundInCwd(t *testing.T) {
 	if err := os.Chdir(tmp); err != nil {
 		t.Fatal(err)
 	}
-	defer os.Chdir(orig)
+	defer func() { _ = os.Chdir(orig) }()
 
 	// Override HOME so the home-dir candidate is not accidentally found.
 	origHome := os.Getenv("HOME")
-	os.Setenv("HOME", tmp)
-	defer os.Setenv("HOME", origHome)
+	if err := os.Setenv("HOME", tmp); err != nil {
+		t.Fatal(err)
+	}
+	defer func() { _ = os.Setenv("HOME", origHome) }()
 
 	// Place .depsclean.json in the temp dir (now cwd).
 	cfgPath := filepath.Join(tmp, ".depsclean.json")

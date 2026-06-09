@@ -28,7 +28,7 @@ func nonSensitiveTempDirForAnalyze(t *testing.T) string {
 	if err != nil {
 		t.Fatal(err)
 	}
-	t.Cleanup(func() { os.RemoveAll(dir) })
+	t.Cleanup(func() { _ = os.RemoveAll(dir) })
 	return dir
 }
 
@@ -294,10 +294,10 @@ func TestDetectPackageManager_Lockfiles(t *testing.T) {
 // TestDetectEcosystem covers the ecosystem detection logic for non-node_modules basenames.
 func TestDetectEcosystem(t *testing.T) {
 	tests := []struct {
-		name      string
-		basename  string
-		files     []string // files to create inside projectPath
-		want      model.PackageManager
+		name     string
+		basename string
+		files    []string // files to create inside projectPath
+		want     model.PackageManager
 	}{
 		{name: ".venv no files", basename: ".venv", want: model.PackageManagerPython},
 		{name: "venv", basename: "venv", want: model.PackageManagerPython},
