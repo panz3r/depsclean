@@ -82,15 +82,16 @@ func RenderCompactRow(r model.Result, isCursor bool, isSelected bool, width int)
 
 	var sizeStr string
 	sizeWidth := 9
-	if r.Status == model.StatusPending {
+	switch r.Status {
+	case model.StatusPending:
 		sizeStr = styleSizePending.Render(fmt.Sprintf("%*s", sizeWidth, "…"))
-	} else if r.Status == model.StatusDeleted {
+	case model.StatusDeleted:
 		sizeStr = styleDeleted.Render(fmt.Sprintf("%*s", sizeWidth, formatSize(r.SizeBytes)))
-	} else if r.Status == model.StatusDeleting {
+	case model.StatusDeleting:
 		sizeStr = styleDeleting.Render(fmt.Sprintf("%*s", sizeWidth, "deleting…"))
-	} else if r.Status == model.StatusError {
+	case model.StatusError:
 		sizeStr = styleError.Render(fmt.Sprintf("%*s", sizeWidth, "ERROR"))
-	} else {
+	default:
 		sizeStr = styleSizeReady.Render(fmt.Sprintf("%*s", sizeWidth, formatSize(r.SizeBytes)))
 	}
 	sizeRenderWidth := lipgloss.Width(sizeStr)
@@ -117,16 +118,17 @@ func RenderCompactRow(r model.Result, isCursor bool, isSelected bool, width int)
 	truncated := truncatePath(parentPath, pathAvail)
 
 	var namePart, pathPart string
-	if r.Status == model.StatusDeleted {
+	switch r.Status {
+	case model.StatusDeleted:
 		namePart = styleDeleted.Render(name)
 		pathPart = styleDeleted.Render(truncated)
-	} else if r.Status == model.StatusDeleting {
+	case model.StatusDeleting:
 		namePart = styleDeleting.Render(name)
 		pathPart = styleDeleting.Render(truncated)
-	} else if r.Status == model.StatusError {
+	case model.StatusError:
 		namePart = styleError.Render(name)
 		pathPart = styleError.Render(truncated)
-	} else {
+	default:
 		namePart = styleProjectName.Render(name)
 		pathPart = styleNormalPath.Render(truncated)
 	}

@@ -55,7 +55,7 @@ func Check(ctx context.Context) CheckResult {
 		result.Err = err
 		return result
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 
 	var payload struct {
 		TagName string `json:"tag_name"`
