@@ -48,10 +48,10 @@ var (
 			Padding(0, 1)
 
 	badgeGo = lipgloss.NewStyle().
-			Background(lipgloss.Color("#00ACD7")).
-			Foreground(lipgloss.Color("#FFFFFF")).
-			Bold(true).
-			Padding(0, 1)
+		Background(lipgloss.Color("#00ACD7")).
+		Foreground(lipgloss.Color("#FFFFFF")).
+		Bold(true).
+		Padding(0, 1)
 
 	badgePHP = lipgloss.NewStyle().
 			Background(lipgloss.Color("#777BB4")).
