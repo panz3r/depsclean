@@ -14,9 +14,6 @@ endif
 
 DEPSCLEAN ?= go run ./cmd/depsclean/main.go
 
-.PHONY: pr
-pr: tidy format lint test
-
 .PHONY: build
 build:
 	go build -ldflags "-X github.com/panz3r/depsclean/internal/update.Version=$(VERSION)" -o dist/local/depsclean ./cmd/depsclean/main.go
@@ -52,6 +49,9 @@ deps-tools: ## install tool dependencies
 .PHONY: security-check
 security-check: deps-tools
 	GOEXPERIMENT= "$(shell go env GOROOT)/bin/go" run $(GOVULNCHECK_PACKAGE) -show color ./...
+
+.PHONY: pr-checks
+pr-checks: tidy format lint test security-check build clean
 
 .PHONY: clean
 clean:
