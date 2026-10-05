@@ -30,7 +30,8 @@ build-all:
 	GOFLAGS="$(GOFLAGS)" CGO_ENABLED=0 GOOS=windows GOARCH=arm64 go build -trimpath -ldflags "-s -w -X github.com/panz3r/depsclean/internal/update.Version=$(VERSION)" -o builds/depsclean_windows_arm64.exe ./cmd/depsclean
 
 .PHONY: release-build
-release-build: clean build-all
+release-build: clean
+	$(MAKE) build-all
 
 .PHONY: format
 format:
