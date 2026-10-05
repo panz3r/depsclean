@@ -1,5 +1,6 @@
 PREFIX ?= /usr/local
 VERSION ?= $(shell git describe --tags --dirty --always | sed -e 's/^v//')
+GOFLAGS ?= -buildvcs=false
 IS_SNAPSHOT = $(if $(findstring -, $(VERSION)),true,false)
 MAJOR_VERSION = $(word 1, $(subst ., ,$(VERSION)))
 MINOR_VERSION = $(word 2, $(subst ., ,$(VERSION)))
@@ -12,11 +13,24 @@ ifeq (true,$(fix))
 	FIX = --fix
 endif
 
-DEPSCLEAN ?= go run ./cmd/depsclean/main.go
+DEPSCLEAN ?= go run ./cmd/depsclean
 
 .PHONY: build
 build:
-	go build -ldflags "-X github.com/panz3r/depsclean/internal/update.Version=$(VERSION)" -o dist/local/depsclean ./cmd/depsclean/main.go
+	GOFLAGS="$(GOFLAGS)" go build -ldflags "-X github.com/panz3r/depsclean/internal/update.Version=$(VERSION)" -o dist/local/depsclean ./cmd/depsclean
+
+.PHONY: build-all
+build-all:
+	mkdir -p builds
+	GOFLAGS="$(GOFLAGS)" CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -trimpath -ldflags "-s -w -X github.com/panz3r/depsclean/internal/update.Version=$(VERSION)" -o builds/depsclean_linux_amd64 ./cmd/depsclean
+	GOFLAGS="$(GOFLAGS)" CGO_ENABLED=0 GOOS=linux GOARCH=arm64 go build -trimpath -ldflags "-s -w -X github.com/panz3r/depsclean/internal/update.Version=$(VERSION)" -o builds/depsclean_linux_arm64 ./cmd/depsclean
+	GOFLAGS="$(GOFLAGS)" CGO_ENABLED=0 GOOS=darwin GOARCH=arm64 go build -trimpath -ldflags "-s -w -X github.com/panz3r/depsclean/internal/update.Version=$(VERSION)" -o builds/depsclean_macos_arm64 ./cmd/depsclean
+	GOFLAGS="$(GOFLAGS)" CGO_ENABLED=0 GOOS=darwin GOARCH=amd64 go build -trimpath -ldflags "-s -w -X github.com/panz3r/depsclean/internal/update.Version=$(VERSION)" -o builds/depsclean_macos_intel ./cmd/depsclean
+	GOFLAGS="$(GOFLAGS)" CGO_ENABLED=0 GOOS=windows GOARCH=amd64 go build -trimpath -ldflags "-s -w -X github.com/panz3r/depsclean/internal/update.Version=$(VERSION)" -o builds/depsclean_windows_amd64.exe ./cmd/depsclean
+	GOFLAGS="$(GOFLAGS)" CGO_ENABLED=0 GOOS=windows GOARCH=arm64 go build -trimpath -ldflags "-s -w -X github.com/panz3r/depsclean/internal/update.Version=$(VERSION)" -o builds/depsclean_windows_arm64.exe ./cmd/depsclean
+
+.PHONY: release-build
+release-build: clean build-all
 
 .PHONY: format
 format:
@@ -55,7 +69,7 @@ pr-checks: tidy format lint test security-check build clean
 
 .PHONY: clean
 clean:
-	rm -rf dist
+	rm -rf dist builds
 
 .PHONY: upgrade
 upgrade:
