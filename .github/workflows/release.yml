@@ -72,13 +72,33 @@ jobs:
           PENDING_TARGET: ${{ steps.pending.outputs.target }}
           PENDING_VERSION: ${{ steps.pending.outputs.version }}
         run: |
+          resolve_target() {
+            local version="$1"
+            local configured_target="$2"
+            local tag_target
+
+            if tag_target="$(git rev-parse -q --verify "refs/tags/$version^{commit}" 2>/dev/null)"; then
+              if [[ "$configured_target" =~ ^[0-9a-f]{40}$ && "$configured_target" != "$tag_target" ]]; then
+                echo "Draft target $configured_target does not match $version at $tag_target" >&2
+                return 1
+              fi
+              echo "$tag_target"
+            elif [[ "$configured_target" =~ ^[0-9a-f]{40}$ ]] && git cat-file -e "$configured_target^{commit}"; then
+              echo "$configured_target"
+            else
+              echo "Draft $version does not have an immutable target" >&2
+              return 1
+            fi
+          }
+
           if [[ "$PENDING_RELEASE" == "true" ]]; then
             echo "Resuming draft release $PENDING_VERSION"
+            TARGET="$(resolve_target "$PENDING_VERSION" "$PENDING_TARGET")"
             {
               echo "checkout=true"
               echo "release=true"
               echo "repair=false"
-              echo "target=$PENDING_TARGET"
+              echo "target=$TARGET"
               echo "version=$PENDING_VERSION"
             } >> "$GITHUB_OUTPUT"
             exit 0
@@ -98,11 +118,12 @@ jobs:
           elif [[ -n "$release" ]]; then
             jq -r '.body // ""' <<< "$release" > "$NOTES"
             echo "Resuming draft release $VERSION"
+            TARGET="$(resolve_target "$VERSION" "$(jq -r '.target_commitish' <<< "$release")")"
             {
               echo "checkout=true"
               echo "release=true"
               echo "repair=false"
-              echo "target=$(jq -r '.target_commitish' <<< "$release")"
+              echo "target=$TARGET"
               echo "version=$VERSION"
             } >> "$GITHUB_OUTPUT"
           elif grep -q '[^[:space:]]' "$NOTES"; then
@@ -121,12 +142,13 @@ jobs:
             else
               RANGE="$VERSION"
             fi
+            TARGET="$(git rev-parse "refs/tags/$VERSION^{commit}")"
             {
               echo "checkout=true"
               echo "range=$RANGE"
               echo "release=true"
               echo "repair=true"
-              echo "target=$VERSION"
+              echo "target=$TARGET"
               echo "version=$VERSION"
             } >> "$GITHUB_OUTPUT"
           else
