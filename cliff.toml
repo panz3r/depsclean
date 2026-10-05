@@ -28,6 +28,7 @@ commit_parsers = [
   { message = "^refactor", group = "<!-- 3 -->Refactoring" },
   { message = "^docs", group = "<!-- 4 -->Documentation" },
   { message = "^chore", group = "<!-- 5 -->Miscellaneous" },
+  { field = "breaking", pattern = "true", group = "<!-- 5 -->Miscellaneous" },
   { message = "^(ci|build|test|style)", skip = true },
 ]
 
