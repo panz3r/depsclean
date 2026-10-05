@@ -17,8 +17,47 @@ concurrency:
   group: release
 
 jobs:
+  release-state:
+    name: Discover release state
+    runs-on: ubuntu-latest
+
+    permissions:
+      contents: write
+
+    outputs:
+      found: ${{ steps.pending.outputs.found }}
+      target: ${{ steps.pending.outputs.target }}
+      version: ${{ steps.pending.outputs.version }}
+      notes: ${{ steps.pending.outputs.notes }}
+
+    steps:
+      - name: Find draft release
+        id: pending
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          releases="$(gh api --paginate --slurp "repos/$GITHUB_REPOSITORY/releases?per_page=100" | jq 'add')"
+          draft="$(
+            jq -c \
+              '[.[] | select(.draft and (.tag_name | test("^v[0-9]+\\.[0-9]+\\.[0-9]+$")))] | sort_by(.created_at) | last // empty' \
+              <<< "$releases"
+          )"
+
+          if [[ -n "$draft" ]]; then
+            notes="$(jq -r '.body // ""' <<< "$draft" | base64 -w 0)"
+            {
+              echo "found=true"
+              echo "target=$(jq -r '.target_commitish' <<< "$draft")"
+              echo "version=$(jq -r '.tag_name' <<< "$draft")"
+              echo "notes=$notes"
+            } >> "$GITHUB_OUTPUT"
+          else
+            echo "found=false" >> "$GITHUB_OUTPUT"
+          fi
+
   prepare:
     name: Prepare release
+    needs: release-state
     runs-on: ubuntu-latest
 
     permissions:
@@ -39,25 +78,23 @@ jobs:
       - name: Find incomplete release
         id: pending
         env:
+          DRAFT_FOUND: ${{ needs.release-state.outputs.found }}
+          DRAFT_NOTES: ${{ needs.release-state.outputs.notes }}
+          DRAFT_TARGET: ${{ needs.release-state.outputs.target }}
+          DRAFT_VERSION: ${{ needs.release-state.outputs.version }}
           GH_TOKEN: ${{ github.token }}
           NOTES: ${{ runner.temp }}/RELEASE_NOTES.md
         run: |
-          releases="$(gh api --paginate --slurp "repos/$GITHUB_REPOSITORY/releases?per_page=100" | jq 'add')"
-          draft="$(
-            jq -c \
-              '[.[] | select(.draft and (.tag_name | test("^v[0-9]+\\.[0-9]+\\.[0-9]+$")))] | sort_by(.created_at) | last // empty' \
-              <<< "$releases"
-          )"
-
-          if [[ -n "$draft" ]]; then
-            jq -r '.body // ""' <<< "$draft" > "$NOTES"
+          if [[ "$DRAFT_FOUND" == "true" ]]; then
+            printf '%s' "$DRAFT_NOTES" | base64 --decode > "$NOTES"
             {
               echo "found=true"
               echo "repair=false"
-              echo "version=$(jq -r '.tag_name' <<< "$draft")"
-              echo "target=$(jq -r '.target_commitish' <<< "$draft")"
+              echo "version=$DRAFT_VERSION"
+              echo "target=$DRAFT_TARGET"
             } >> "$GITHUB_OUTPUT"
           else
+            releases="$(gh api --paginate --slurp "repos/$GITHUB_REPOSITORY/releases?per_page=100" | jq 'add')"
             orphan="$(git tag --list 'v[0-9]*' --sort=-version:refname | grep -E '^v[0-9]+\.[0-9]+\.[0-9]+$' | head -1 || true)"
             if [[ -n "$orphan" ]] && jq -e --arg tag "$orphan" 'any(.tag_name == $tag)' <<< "$releases" >/dev/null; then
               orphan=""
@@ -284,6 +321,7 @@ jobs:
       - name: Publish GitHub release
         env:
           GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
           NOTES: release-artifacts/RELEASE_NOTES.md
           TAGGED: ${{ needs.prepare.outputs.tagged }}
           TARGET: ${{ needs.prepare.outputs.target }}
