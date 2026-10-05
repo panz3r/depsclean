@@ -36,7 +36,7 @@ jobs:
           GH_TOKEN: ${{ github.token }}
           NOTES: ${{ runner.temp }}/RELEASE_NOTES.md
         run: |
-          releases="$(gh api "repos/$GITHUB_REPOSITORY/releases?per_page=100")"
+          releases="$(gh api --paginate --slurp "repos/$GITHUB_REPOSITORY/releases?per_page=100" | jq 'add')"
           draft="$(
             jq -c \
               '[.[] | select(.draft and (.tag_name | test("^v[0-9]+\\.[0-9]+\\.[0-9]+$")))] | sort_by(.created_at) | last // empty' \
@@ -141,7 +141,7 @@ jobs:
           fi
 
           VERSION="$CANDIDATE_VERSION"
-          releases="$(gh api "repos/$GITHUB_REPOSITORY/releases?per_page=100")"
+          releases="$(gh api --paginate --slurp "repos/$GITHUB_REPOSITORY/releases?per_page=100" | jq 'add')"
           release="$(
             jq -c --arg version "$VERSION" \
               '[.[] | select(.tag_name == $version)] | first // empty' \
@@ -247,8 +247,9 @@ jobs:
           VERSION: ${{ steps.check.outputs.version }}
         run: |
           release_state="$(
-            gh api "repos/$GITHUB_REPOSITORY/releases?per_page=100" --jq \
-              "[.[] | select(.tag_name == \"$VERSION\")] | first | if . == null then \"missing\" elif .draft then \"draft\" else \"published\" end"
+            gh api --paginate --slurp "repos/$GITHUB_REPOSITORY/releases?per_page=100" | \
+              jq -r --arg version "$VERSION" \
+                'add | [.[] | select(.tag_name == $version)] | first | if . == null then "missing" elif .draft then "draft" else "published" end'
           )"
 
           if [[ "$release_state" == "published" ]]; then
@@ -263,8 +264,9 @@ jobs:
           fi
 
           release_state="$(
-            gh api "repos/$GITHUB_REPOSITORY/releases?per_page=100" --jq \
-              "[.[] | select(.tag_name == \"$VERSION\")] | first | if . == null then \"missing\" elif .draft then \"draft\" else \"published\" end"
+            gh api --paginate --slurp "repos/$GITHUB_REPOSITORY/releases?per_page=100" | \
+              jq -r --arg version "$VERSION" \
+                'add | [.[] | select(.tag_name == $version)] | first | if . == null then "missing" elif .draft then "draft" else "published" end'
           )"
           if [[ "$release_state" != "draft" ]]; then
             echo "Expected $VERSION to be a draft before uploading assets; found $release_state" >&2
