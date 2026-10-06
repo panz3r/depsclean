@@ -330,11 +330,13 @@ jobs:
           TARGET: ${{ needs.prepare.outputs.target }}
           VERSION: ${{ needs.prepare.outputs.version }}
         run: |
-          release_state="$(
+          read_release_state() {
             gh api --paginate --slurp "repos/$GITHUB_REPOSITORY/releases?per_page=100" | \
               jq -r --arg version "$VERSION" \
                 'add | [.[] | select(.tag_name == $version)] | first | if . == null then "missing" elif .draft then "draft" else "published" end'
-          )"
+          }
+
+          release_state="$(read_release_state)"
 
           if [[ "$release_state" == "published" ]]; then
             echo "$VERSION was published while this workflow was running; refusing to replace its assets" >&2
@@ -347,11 +349,17 @@ jobs:
             fi
           fi
 
-          release_state="$(
-            gh api --paginate --slurp "repos/$GITHUB_REPOSITORY/releases?per_page=100" | \
-              jq -r --arg version "$VERSION" \
-                'add | [.[] | select(.tag_name == $version)] | first | if . == null then "missing" elif .draft then "draft" else "published" end'
-          )"
+          # Re-read before uploading assets so a release published concurrently
+          # is still detected. The releases list is eventually consistent, so a
+          # freshly created draft may be absent from the next read for a moment.
+          for _ in $(seq 1 10); do
+            release_state="$(read_release_state)"
+            if [[ "$release_state" != "missing" ]]; then
+              break
+            fi
+            sleep 3
+          done
+
           if [[ "$release_state" != "draft" ]]; then
             echo "Expected $VERSION to be a draft before uploading assets; found $release_state" >&2
             exit 1
