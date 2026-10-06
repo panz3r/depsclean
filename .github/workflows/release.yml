@@ -365,10 +365,9 @@ jobs:
             exit 1
           fi
 
-          if [[ "$TAGGED" == "true" ]]; then
-            gh release edit "$VERSION" --draft --title "$VERSION" --notes-file "$NOTES"
-          else
-            gh release edit "$VERSION" --draft --target "$TARGET" --title "$VERSION" --notes-file "$NOTES"
-          fi
+          # The update endpoint rejects a commit SHA for the target, and the
+          # draft already points at the right commit from creation, so only the
+          # title and notes are refreshed here.
+          gh release edit "$VERSION" --draft --title "$VERSION" --notes-file "$NOTES"
           gh release upload "$VERSION" release-artifacts/builds/* --clobber
           gh release edit "$VERSION" --draft=false
