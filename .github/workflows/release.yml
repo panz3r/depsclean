@@ -1,103 +1,366 @@
 name: Release
 
 on:
+  schedule:
+    - cron: "0 17 * * 2" # Weekly on Tuesday evenings
   workflow_dispatch:
     inputs:
-      version:
-        description: "Release version without the v prefix (example: 1.2.3)"
-        required: true
-        type: string
-  push:
-    tags:
-      - "v*"
+      dry-run:
+        description: Compute the next version and release notes without publishing
+        type: boolean
+        default: false
 
 permissions:
-  contents: write
+  contents: read
+
+concurrency:
+  group: release
 
 jobs:
-  build:
-    name: Build and Release
+  release-state:
+    name: Discover release state
     runs-on: ubuntu-latest
-    if: github.event_name != 'push' || github.actor != 'github-actions[bot]'
+
+    permissions:
+      contents: write
+
+    outputs:
+      found: ${{ steps.pending.outputs.found }}
+      target: ${{ steps.pending.outputs.target }}
+      version: ${{ steps.pending.outputs.version }}
+      notes: ${{ steps.pending.outputs.notes }}
 
     steps:
-      - name: Checkout code
+      - name: Find draft release
+        id: pending
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          releases="$(gh api --paginate --slurp "repos/$GITHUB_REPOSITORY/releases?per_page=100" | jq 'add')"
+          draft="$(
+            jq -c \
+              '[.[] | select(.draft and (.tag_name | test("^v[0-9]+\\.[0-9]+\\.[0-9]+$")))] | sort_by(.created_at) | last // empty' \
+              <<< "$releases"
+          )"
+
+          if [[ -n "$draft" ]]; then
+            notes="$(jq -r '.body // ""' <<< "$draft" | base64 -w 0)"
+            {
+              echo "found=true"
+              echo "target=$(jq -r '.target_commitish' <<< "$draft")"
+              echo "version=$(jq -r '.tag_name' <<< "$draft")"
+              echo "notes=$notes"
+            } >> "$GITHUB_OUTPUT"
+          else
+            echo "found=false" >> "$GITHUB_OUTPUT"
+          fi
+
+  prepare:
+    name: Prepare release
+    needs: release-state
+    runs-on: ubuntu-latest
+
+    permissions:
+      contents: read
+
+    outputs:
+      release: ${{ steps.check.outputs.release }}
+      tagged: ${{ steps.package.outputs.tagged }}
+      target: ${{ steps.check.outputs.target }}
+      version: ${{ steps.check.outputs.version }}
+
+    steps:
+      - name: Checkout repository
         uses: actions/checkout@v7
         with:
           fetch-depth: 0
 
-      - name: Set up Go
-        uses: actions/setup-go@v7
-        with:
-          go-version-file: "go.mod"
-          check-latest: true
-
-      - name: Resolve release version
-        shell: bash
+      - name: Find incomplete release
+        id: pending
+        env:
+          DRAFT_FOUND: ${{ needs.release-state.outputs.found }}
+          DRAFT_NOTES: ${{ needs.release-state.outputs.notes }}
+          DRAFT_TARGET: ${{ needs.release-state.outputs.target }}
+          DRAFT_VERSION: ${{ needs.release-state.outputs.version }}
+          GH_TOKEN: ${{ github.token }}
+          NOTES: ${{ runner.temp }}/RELEASE_NOTES.md
         run: |
-          if [[ "${{ github.event_name }}" == "workflow_dispatch" ]]; then
-            RAW_VERSION="${{ inputs.version }}"
-            if [[ ! "$RAW_VERSION" =~ ^v?[0-9]+\.[0-9]+\.[0-9]+([-.][0-9A-Za-z.-]+)?$ ]]; then
-              echo "Invalid version format: $RAW_VERSION" >&2
-              exit 1
-            fi
-            APP_VERSION="${RAW_VERSION#v}"
-            APP_TAG="v${APP_VERSION}"
+          if [[ "$DRAFT_FOUND" == "true" ]]; then
+            printf '%s' "$DRAFT_NOTES" | base64 --decode > "$NOTES"
+            {
+              echo "found=true"
+              echo "repair=false"
+              echo "version=$DRAFT_VERSION"
+              echo "target=$DRAFT_TARGET"
+            } >> "$GITHUB_OUTPUT"
           else
-            APP_TAG="${GITHUB_REF#refs/tags/}"
-            APP_VERSION="${APP_TAG#v}"
+            releases="$(gh api --paginate --slurp "repos/$GITHUB_REPOSITORY/releases?per_page=100" | jq 'add')"
+            orphan="$(git tag --list 'v[0-9]*' --sort=-version:refname | grep -E '^v[0-9]+\.[0-9]+\.[0-9]+$' | head -1 || true)"
+            if [[ -n "$orphan" ]] && jq -e --arg tag "$orphan" 'any(.tag_name == $tag)' <<< "$releases" >/dev/null; then
+              orphan=""
+            fi
+
+            if [[ -n "$orphan" ]]; then
+              previous_tag="$(git describe --tags --abbrev=0 "$orphan^" --match 'v[0-9]*' 2>/dev/null || true)"
+              if [[ -n "$previous_tag" ]]; then
+                RANGE="$previous_tag..$orphan"
+              else
+                RANGE="$orphan"
+              fi
+              TARGET="$(git rev-parse "refs/tags/$orphan^{commit}")"
+              {
+                echo "found=true"
+                echo "range=$RANGE"
+                echo "repair=true"
+                echo "target=$TARGET"
+                echo "version=$orphan"
+              } >> "$GITHUB_OUTPUT"
+            else
+              echo "found=false" >> "$GITHUB_OUTPUT"
+            fi
           fi
 
-          echo "APP_VERSION=${APP_VERSION}" >> "$GITHUB_ENV"
-          echo "APP_TAG=${APP_TAG}" >> "$GITHUB_ENV"
+      - name: Generate release notes
+        if: steps.pending.outputs.found != 'true'
+        id: notes
+        uses: orhun/git-cliff-action@a9a95522b26fe6403f7bb24031f21fb573d0f5ff # v4.9.1
+        with:
+          args: --unreleased --bump --strip all --output ${{ runner.temp }}/RELEASE_NOTES.md
 
-      - name: Create tag for manual release
-        if: github.event_name == 'workflow_dispatch'
-        shell: bash
+      # git-cliff reports the latest tag as the next version when nothing is releasable
+      - name: Check for releasable changes
+        id: check
+        env:
+          CANDIDATE_VERSION: ${{ steps.notes.outputs.version }}
+          GH_TOKEN: ${{ github.token }}
+          NOTES: ${{ runner.temp }}/RELEASE_NOTES.md
+          PENDING_RANGE: ${{ steps.pending.outputs.range }}
+          PENDING_RELEASE: ${{ steps.pending.outputs.found }}
+          PENDING_REPAIR: ${{ steps.pending.outputs.repair }}
+          PENDING_TARGET: ${{ steps.pending.outputs.target }}
+          PENDING_VERSION: ${{ steps.pending.outputs.version }}
         run: |
-          if git ls-remote --tags origin "refs/tags/${APP_TAG}" | grep -q .; then
-            echo "Tag ${APP_TAG} already exists on origin" >&2
+          resolve_target() {
+            local version="$1"
+            local configured_target="$2"
+            local tag_target
+
+            if tag_target="$(git rev-parse -q --verify "refs/tags/$version^{commit}" 2>/dev/null)"; then
+              if [[ "$configured_target" =~ ^[0-9a-f]{40}$ && "$configured_target" != "$tag_target" ]]; then
+                echo "Draft target $configured_target does not match $version at $tag_target" >&2
+                return 1
+              fi
+              echo "$tag_target"
+            elif [[ "$configured_target" =~ ^[0-9a-f]{40}$ ]] && git cat-file -e "$configured_target^{commit}"; then
+              echo "$configured_target"
+            else
+              echo "Draft $version does not have an immutable target" >&2
+              return 1
+            fi
+          }
+
+          if [[ "$PENDING_RELEASE" == "true" ]]; then
+            if [[ "$PENDING_REPAIR" == "true" ]]; then
+              echo "Resuming interrupted release $PENDING_VERSION"
+            else
+              echo "Resuming draft release $PENDING_VERSION"
+            fi
+            TARGET="$(resolve_target "$PENDING_VERSION" "$PENDING_TARGET")"
+            {
+              echo "checkout=true"
+              echo "release=true"
+              echo "repair=$PENDING_REPAIR"
+              echo "target=$TARGET"
+              echo "version=$PENDING_VERSION"
+              if [[ "$PENDING_REPAIR" == "true" ]]; then
+                echo "range=$PENDING_RANGE"
+              fi
+            } >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          VERSION="$CANDIDATE_VERSION"
+          releases="$(gh api --paginate --slurp "repos/$GITHUB_REPOSITORY/releases?per_page=100" | jq 'add')"
+          release="$(
+            jq -c --arg version "$VERSION" \
+              '[.[] | select(.tag_name == $version)] | first // empty' \
+              <<< "$releases"
+          )"
+
+          if [[ -n "$release" && "$(jq -r '.draft' <<< "$release")" == "false" ]]; then
+            echo "$VERSION is already published"
+            echo "release=false" >> "$GITHUB_OUTPUT"
+          elif [[ -n "$release" ]]; then
+            jq -r '.body // ""' <<< "$release" > "$NOTES"
+            echo "Resuming draft release $VERSION"
+            TARGET="$(resolve_target "$VERSION" "$(jq -r '.target_commitish' <<< "$release")")"
+            {
+              echo "checkout=true"
+              echo "release=true"
+              echo "repair=false"
+              echo "target=$TARGET"
+              echo "version=$VERSION"
+            } >> "$GITHUB_OUTPUT"
+          elif grep -q '[^[:space:]]' "$NOTES"; then
+            {
+              echo "checkout=false"
+              echo "release=true"
+              echo "repair=false"
+              echo "target=$GITHUB_SHA"
+              echo "version=$VERSION"
+            } >> "$GITHUB_OUTPUT"
+          elif git rev-parse -q --verify "refs/tags/$VERSION" >/dev/null; then
+            echo "Resuming interrupted release $VERSION"
+            previous_tag="$(git describe --tags --abbrev=0 "$VERSION^" --match 'v[0-9]*' 2>/dev/null || true)"
+            if [[ -n "$previous_tag" ]]; then
+              RANGE="$previous_tag..$VERSION"
+            else
+              RANGE="$VERSION"
+            fi
+            TARGET="$(git rev-parse "refs/tags/$VERSION^{commit}")"
+            {
+              echo "checkout=true"
+              echo "range=$RANGE"
+              echo "release=true"
+              echo "repair=true"
+              echo "target=$TARGET"
+              echo "version=$VERSION"
+            } >> "$GITHUB_OUTPUT"
+          else
+            echo "No releasable changes since the last release"
+            echo "release=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Regenerate notes for interrupted release
+        if: steps.check.outputs.repair == 'true'
+        uses: orhun/git-cliff-action@a9a95522b26fe6403f7bb24031f21fb573d0f5ff # v4.9.1
+        env:
+          NOTES: ${{ runner.temp }}/RELEASE_NOTES.md
+          RANGE: ${{ steps.check.outputs.range }}
+        with:
+          args: '"$RANGE" --strip all --output "$NOTES"'
+
+      - name: Summarize release
+        if: steps.check.outputs.release == 'true'
+        env:
+          NOTES: ${{ runner.temp }}/RELEASE_NOTES.md
+          VERSION: ${{ steps.check.outputs.version }}
+        run: |
+          { echo "## $VERSION"; echo; cat "$NOTES"; } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Require default branch for publishing
+        if: steps.check.outputs.release == 'true' && !inputs.dry-run && github.ref != 'refs/heads/main'
+        run: |
+          echo "Releases must be published from the main branch" >&2
+          exit 1
+
+      - name: Check out release source
+        if: steps.check.outputs.release == 'true' && steps.check.outputs.checkout == 'true' && !inputs.dry-run && github.ref == 'refs/heads/main'
+        env:
+          TARGET: ${{ steps.check.outputs.target }}
+        run: |
+          cp Makefile "$RUNNER_TEMP/release-Makefile"
+          git checkout --detach "$TARGET"
+          cp "$RUNNER_TEMP/release-Makefile" Makefile
+
+      - name: Set up Go
+        if: steps.check.outputs.release == 'true' && !inputs.dry-run && github.ref == 'refs/heads/main'
+        uses: actions/setup-go@v7
+        with:
+          go-version-file: 'go.mod'
+          check-latest: true
+
+      - name: Run tests
+        if: steps.check.outputs.release == 'true' && !inputs.dry-run && github.ref == 'refs/heads/main'
+        run: go test ./...
+
+      - name: Build release binaries
+        if: steps.check.outputs.release == 'true' && !inputs.dry-run && github.ref == 'refs/heads/main'
+        env:
+          VERSION: ${{ steps.check.outputs.version }}
+        run: make release-build VERSION="${VERSION#v}"
+
+      - name: Stage release artifacts
+        id: package
+        if: steps.check.outputs.release == 'true' && !inputs.dry-run && github.ref == 'refs/heads/main'
+        env:
+          NOTES: ${{ runner.temp }}/RELEASE_NOTES.md
+          VERSION: ${{ steps.check.outputs.version }}
+        run: |
+          mkdir -p "$RUNNER_TEMP/release-artifacts/builds"
+          cp "$NOTES" "$RUNNER_TEMP/release-artifacts/RELEASE_NOTES.md"
+          cp builds/* "$RUNNER_TEMP/release-artifacts/builds/"
+          if git rev-parse -q --verify "refs/tags/$VERSION" >/dev/null; then
+            echo "tagged=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "tagged=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Upload release artifacts
+        if: steps.check.outputs.release == 'true' && !inputs.dry-run && github.ref == 'refs/heads/main'
+        uses: actions/upload-artifact@v7
+        with:
+          name: release-artifacts
+          path: ${{ runner.temp }}/release-artifacts/
+          if-no-files-found: error
+          retention-days: 1
+
+  publish:
+    name: Publish release
+    needs: prepare
+    if: needs.prepare.outputs.release == 'true' && !inputs.dry-run && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+
+    permissions:
+      contents: write
+
+    steps:
+      - name: Download release artifacts
+        uses: actions/download-artifact@v7
+        with:
+          name: release-artifacts
+          path: release-artifacts
+
+      - name: Publish GitHub release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          NOTES: release-artifacts/RELEASE_NOTES.md
+          TAGGED: ${{ needs.prepare.outputs.tagged }}
+          TARGET: ${{ needs.prepare.outputs.target }}
+          VERSION: ${{ needs.prepare.outputs.version }}
+        run: |
+          release_state="$(
+            gh api --paginate --slurp "repos/$GITHUB_REPOSITORY/releases?per_page=100" | \
+              jq -r --arg version "$VERSION" \
+                'add | [.[] | select(.tag_name == $version)] | first | if . == null then "missing" elif .draft then "draft" else "published" end'
+          )"
+
+          if [[ "$release_state" == "published" ]]; then
+            echo "$VERSION was published while this workflow was running; refusing to replace its assets" >&2
+            exit 1
+          elif [[ "$release_state" == "missing" ]]; then
+            if [[ "$TAGGED" == "true" ]]; then
+              gh release create "$VERSION" --draft --verify-tag --title "$VERSION" --notes-file "$NOTES"
+            else
+              gh release create "$VERSION" --draft --target "$TARGET" --title "$VERSION" --notes-file "$NOTES"
+            fi
+          fi
+
+          release_state="$(
+            gh api --paginate --slurp "repos/$GITHUB_REPOSITORY/releases?per_page=100" | \
+              jq -r --arg version "$VERSION" \
+                'add | [.[] | select(.tag_name == $version)] | first | if . == null then "missing" elif .draft then "draft" else "published" end'
+          )"
+          if [[ "$release_state" != "draft" ]]; then
+            echo "Expected $VERSION to be a draft before uploading assets; found $release_state" >&2
             exit 1
           fi
 
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git tag -a "${APP_TAG}" -m "Release ${APP_TAG}" "${GITHUB_SHA}"
-          git push origin "${APP_TAG}"
-
-      - name: Build release binaries
-        run: |
-          mkdir -p builds
-
-          build() {
-            local goos="$1"
-            local goarch="$2"
-            local output="$3"
-            CGO_ENABLED=0 GOOS="$goos" GOARCH="$goarch" \
-              go build -trimpath -ldflags "-s -w -X github.com/panz3r/depsclean/internal/update.Version=${APP_VERSION}" \
-              -o "$output" ./cmd/depsclean
-          }
-
-          build linux amd64 builds/depsclean_linux_amd64
-          build linux arm64 builds/depsclean_linux_arm64
-          build darwin arm64 builds/depsclean_macos_arm64
-          build darwin amd64 builds/depsclean_macos_intel
-          build windows amd64 builds/depsclean_windows_amd64.exe
-          build windows arm64 builds/depsclean_windows_arm64.exe
-
-      - name: Create release
-        uses: softprops/action-gh-release@v3
-        with:
-          tag_name: ${{ env.APP_TAG }}
-          target_commitish: ${{ github.sha }}
-          name: ${{ env.APP_TAG }}
-          draft: false
-          prerelease: false
-          generate_release_notes: true
-          files: |
-            builds/depsclean_linux_amd64
-            builds/depsclean_linux_arm64
-            builds/depsclean_macos_arm64
-            builds/depsclean_macos_intel
-            builds/depsclean_windows_amd64.exe
-            builds/depsclean_windows_arm64.exe
+          if [[ "$TAGGED" == "true" ]]; then
+            gh release edit "$VERSION" --draft --title "$VERSION" --notes-file "$NOTES"
+          else
+            gh release edit "$VERSION" --draft --target "$TARGET" --title "$VERSION" --notes-file "$NOTES"
+          fi
+          gh release upload "$VERSION" release-artifacts/builds/* --clobber
+          gh release edit "$VERSION" --draft=false
