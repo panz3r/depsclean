@@ -234,8 +234,11 @@ jobs:
       - name: Regenerate notes for interrupted release
         if: steps.check.outputs.repair == 'true'
         uses: orhun/git-cliff-action@a9a95522b26fe6403f7bb24031f21fb573d0f5ff # v4.9.1
+        env:
+          NOTES: ${{ runner.temp }}/RELEASE_NOTES.md
+          RANGE: ${{ steps.check.outputs.range }}
         with:
-          args: ${{ steps.check.outputs.range }} --strip all --output ${{ runner.temp }}/RELEASE_NOTES.md
+          args: '"$RANGE" --strip all --output "$NOTES"'
 
       - name: Summarize release
         if: steps.check.outputs.release == 'true'
